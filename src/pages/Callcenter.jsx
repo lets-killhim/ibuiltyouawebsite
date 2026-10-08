@@ -23,7 +23,7 @@ export default function Callcenter({ settings, toast, refreshCounts }) {
     setVisible(rows.length);
     return rows;
   };
-  useEffect(() => { load().then((r) => { if (r.length) setPhase('done'); }).catch(() => {}); return () => timers.current.forEach(clearTimeout); }, []);
+  useEffect(() => { load().then((r) => { if (r.length) { setPhase('done'); enrichAll(r); } }).catch(() => {}); return () => timers.current.forEach(clearTimeout); }, []);
 
   const startScan = async () => {
     if (!settings?.has_outscraper) { toast('Add your Outscraper key in settings first'); return; }
@@ -55,13 +55,19 @@ export default function Callcenter({ settings, toast, refreshCounts }) {
     tick();
   };
 
-  const enrichAll = async (rows) => {
-    const todo = rows.filter((l) => !l.enriched_at && l.status !== 'trash');
-    for (const l of todo) {
-      setEnriching(l.id);
-      try { const u = await api.enrich(l.id); setLeads((ls) => ls.map((x) => (x.id === u.id ? u : x))); } catch (e) { /* keep going */ }
-    }
-    setEnriching(null);
+  const enrichAll = async (rows, redoEmpty = false) => {
+    const empty = (l) => !(l.photos || []).length && !l.links?.facebook && !l.links?.instagram;
+    const todo = rows.filter((l) => l.status !== 'trash' && (!l.enriched_at || (redoEmpty && empty(l))));
+    if (!todo.length) return;
+    let next = 0; const busy = new Set();
+    const worker = async () => {
+      while (next < todo.length) {
+        const l = todo[next++]; busy.add(l.id); setEnriching(new Set(busy));
+        try { const u = await api.enrich(l.id); setLeads((ls) => ls.map((x) => (x.id === u.id ? u : x))); } catch (e) { /* keep going */ }
+        busy.delete(l.id); setEnriching(busy.size ? new Set(busy) : null);
+      }
+    };
+    await Promise.all(Array.from({ length: 4 }, worker));
   };
 
   const patch = async (id, p) => {
@@ -100,12 +106,14 @@ export default function Callcenter({ settings, toast, refreshCounts }) {
           {scan?.towns ? `${scan.towns} towns, ` : ''}waiting on Google Maps{scan?.rows_returned ? `, ${scan.rows_returned} rows so far` : ''}. Usually one to three minutes.
         </span>
       )}
-      {enriching && <span className="small muted">checking Facebook, Instagram and photos as they land</span>}
+      {phase === 'done' && scan?.debug && <span className="small muted">{scan.rows_returned} rows from Google Maps, {scan.debug.with_site} had websites, {scan.debug.no_phone} had no phone, {scan.no_site} kept, {scan.new_leads} new</span>}
+      {enriching && <span className="small muted">checking Facebook, Instagram and photos, four leads at a time; you can keep calling</span>}
+      {phase === 'done' && !enriching && leads.some((l) => !(l.photos || []).length) && <button className="btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => enrichAll(leads, true)}>re-check leads with no photos or socials</button>}
 
       <div className="rows">
         {shown.map((l) => (
           <LeadRow key={l.id} lead={l} open={!!open[l.id]} toggle={() => setOpen((o) => ({ ...o, [l.id]: !o[l.id] }))}
-            popup={popup && popup.id === l.id ? popup : null} setPopup={setPopup} patch={patch} trash={trash} enriching={enriching === l.id} />
+            popup={popup && popup.id === l.id ? popup : null} setPopup={setPopup} patch={patch} trash={trash} enriching={!!(enriching && enriching.has(l.id))} />
         ))}
         {shown.length > 0 && <div className="end" />}
         {phase === 'idle' && leads.length === 0 && <span className="muted" style={{ padding: '24px 0' }}>Type a business and some towns, then scan. Every business we find has a phone number and no real website.</span>}
@@ -173,10 +181,8 @@ function LeadRow({ lead: l, open, toggle, popup, setPopup, patch, trash, enrichi
           <div style={{ flex: '0 1 300px', display: 'flex', flexDirection: 'column', gap: 16, fontSize: 14, lineHeight: 1.55 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <span>{l.address}</span>
-              {l.hours && <span>{l.hours}</span>}
-              {l.owner && <span>Owner replies as {l.owner}.</span>}
-              {l.rating && <span className="muted">{l.rating} stars, {l.category}</span>}
-              {l.blurb && <span className="muted">"{l.blurb}"</span>}
+              <span className="muted">{l.rating ? `${l.rating} stars, ` : ''}{l.reviews} reviews{l.category ? `, ${l.category}` : ''}</span>
+              {l.enrich_error && <span className="small" style={{ color: 'var(--red)' }}>{l.enrich_error}</span>}
             </div>
             <div className="muted" style={{ display: 'flex', flexDirection: 'column', gap: 4, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
               <span>Google, from the listing</span>
@@ -185,7 +191,7 @@ function LeadRow({ lead: l, open, toggle, popup, setPopup, patch, trash, enrichi
             </div>
           </div>
           <div style={{ flex: '1 1 360px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <span className="small muted">{l.photos?.length || 0} photos of their work{l.photos?.length ? ', from their Google listing' : l.enriched_at ? '' : ', loading'}</span>
+            <span className="small muted">{l.photos?.length || 0} photos of their work{l.photos?.length ? ', from their Google listing' : l.enriched_at ? '' : ', still loading'}</span>
             <div className="photos">
               {(l.photos || []).slice(0, 12).map((p, i) => <img key={i} src={p.src} alt="" loading="lazy" />)}
             </div>

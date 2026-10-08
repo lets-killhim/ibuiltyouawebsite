@@ -2,7 +2,8 @@
 const SOCIAL = ['facebook.com', 'instagram.com', 'linktr.ee', 'yelp.com', 'nextdoor.com', 'business.site'];
 
 export const digits = (phone) => { const d = String(phone || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : d; };
-export const hasSite = (row) => { const s = String(row.site || '').trim().toLowerCase(); return s !== '' && !SOCIAL.some((x) => s.includes(x)); };
+export const siteOf = (row) => String(row.site || row.website || row.web_site || row.domain || '').trim();
+export const hasSite = (row) => { const s = siteOf(row).toLowerCase(); return s !== '' && !SOCIAL.some((x) => s.includes(x)); };
 
 export function fmtHours(wh) {
   if (!wh || typeof wh !== 'object') return '';
@@ -35,7 +36,7 @@ export function toLead(row, scanId) {
     name: row.name, phone: row.phone || null, phone_digits: digits(row.phone),
     address: row.full_address || null, city: row.city || null, state: row.state || null, zip: row.postal_code || null,
     rating: row.rating ?? null, reviews: +row.reviews || 0, category: row.category || row.type || null,
-    hours: fmtHours(row.working_hours), owner: row.owner_title || null,
+    hours: '', owner: null, site_seen: siteOf(row) || null,
     maps_url: row.location_link || (placeId ? `https://www.google.com/maps/place/?q=place_id:${placeId}` : null),
     main_photo: row.photo || null, logo: row.logo || null,
     score: sc, tier, status: 'new',
@@ -52,6 +53,6 @@ export function present(r) {
     logo: r.logo, photos: r.photos || [], best_reviews: r.best_reviews || [],
     score: r.score, tier: r.tier, status: r.status, warmth: r.warmth || 0, meeting: r.meeting, notes: r.notes || '',
     site: r.site || null, live: r.live || [0, 0, 0, 0], plan: r.plan, pay: r.pay, domain: r.domain, form_email: r.form_email,
-    enriched_at: r.enriched_at, created_at: r.created_at,
+    enriched_at: r.enriched_at, enrich_error: r.enrich_error || null, main_photo: r.main_photo, created_at: r.created_at,
   };
 }

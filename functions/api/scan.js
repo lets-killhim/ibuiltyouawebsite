@@ -1,8 +1,8 @@
 import { db, json, bad, getSettings, logCost } from '../_lib/db.js';
 import { os } from '../_lib/outscraper.js';
-import { toLead, hasSite, digits } from '../_lib/leads.js';
+import { toLead, hasSite, siteOf } from '../_lib/leads.js';
 
-const FIELDS = 'place_id,google_id,name,phone,site,full_address,city,state,postal_code,rating,reviews,category,type,working_hours,owner_title,photos_count,verified,location_link,photo,logo,business_status';
+const FIELDS = 'place_id,google_id,name,phone,site,website,full_address,city,state,postal_code,rating,reviews,category,type,working_hours,owner_title,photos_count,verified,location_link,photo,logo,business_status';
 const USD_PER_ROW = 0.003;
 
 export async function onRequestPost({ request, env }) {
@@ -39,8 +39,9 @@ export async function onRequestGet({ request, env }) {
     }
     const counts = await ingest(d, scan, r.data || []);
     await logCost(env, 'maps rows', counts.rows_returned, counts.rows_returned * USD_PER_ROW);
-    const [done] = await d.update('scans', `id=eq.${id}`, { status: 'done', ...counts, est_cost_usd: counts.rows_returned * USD_PER_ROW, finished_at: new Date().toISOString() });
-    return json(view(done));
+    const { debug, ...stored } = counts;
+    const [done] = await d.update('scans', `id=eq.${id}`, { status: 'done', ...stored, est_cost_usd: counts.rows_returned * USD_PER_ROW, finished_at: new Date().toISOString() });
+    return json({ ...view(done), debug });
   } catch (e) { return bad(e.message, 500); }
 }
 
@@ -51,10 +52,11 @@ async function ingest(d, scan, data) {
   for (const per of data) { if (Array.isArray(per)) places.push(...per); else if (per && typeof per === 'object') places.push(per); }
   const rows_returned = places.length;
   const fresh = []; const seenPlace = new Set(); const seenPhone = new Set();
+  let with_site = 0, no_phone = 0, closed = 0;
   for (const p of places) {
-    if (hasSite(p)) continue;
-    if ((p.business_status || 'OPERATIONAL') !== 'OPERATIONAL') continue;
-    if (!p.phone) continue;
+    if (hasSite(p)) { with_site++; continue; }
+    if ((p.business_status || 'OPERATIONAL') !== 'OPERATIONAL') { closed++; continue; }
+    if (!p.phone) { no_phone++; continue; }
     const lead = toLead(p, scan.id);
     if (!lead.place_id || seenPlace.has(lead.place_id)) continue;
     if (lead.phone_digits && seenPhone.has(lead.phone_digits)) continue;
@@ -72,6 +74,7 @@ async function ingest(d, scan, data) {
     const toInsert = chunk.filter((l) => !ep.has(l.place_id) && !(l.phone_digits && eph.has(l.phone_digits)));
     if (toInsert.length) { await d.insert('leads', toInsert); new_leads += toInsert.length; }
   }
-  return { rows_returned, no_site, new_leads };
+  const sample = places[0] ? { keys: Object.keys(places[0]), site: places[0].site ?? null, website: places[0].website ?? null, name: places[0].name } : null;
+  return { rows_returned, no_site, new_leads, debug: { with_site, no_phone, closed, sample } };
 }
 const q = (s) => `"${String(s).replace(/"/g, '')}"`;
