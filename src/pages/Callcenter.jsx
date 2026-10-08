@@ -108,7 +108,12 @@ export default function Callcenter({ settings, toast, refreshCounts }) {
       )}
       {phase === 'done' && scan?.debug && <span className="small muted">{scan.rows_returned} rows from Google Maps, {scan.debug.with_site} had websites, {scan.debug.no_phone} had no phone, {scan.no_site} kept, {scan.new_leads} new</span>}
       {enriching && <span className="small muted">checking Facebook, Instagram and photos, four leads at a time; you can keep calling</span>}
-      {phase === 'done' && !enriching && leads.some((l) => !(l.photos || []).length) && <button className="btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => enrichAll(leads, true)}>re-check leads with no photos or socials</button>}
+      {phase === 'done' && !enriching && (
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {leads.some((l) => !(l.photos || []).length) && <button className="btn-ghost" onClick={() => enrichAll(leads, true)}>re-check leads with no photos or socials</button>}
+          <button className="btn-ghost" onClick={async () => { if (!window.confirm(`Delete all ${leads.filter((l) => l.status === filter).length} leads in this list? Call-later and confirmed leads elsewhere are untouched.`)) return; await api.clear(filter); setLeads((ls) => ls.filter((l) => l.status !== filter)); refreshCounts(); }}>clear this list</button>
+        </div>
+      )}
 
       <div className="rows">
         {shown.map((l) => (

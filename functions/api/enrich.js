@@ -35,7 +35,7 @@ export async function onRequestPost({ request, env }) {
     const errs = [];
 
     const photosJob = os.photos(key, l.place_id, 15).then((res) => {
-      const page = res[0] || {}; const list = Array.isArray(page) ? page : page.photos_data || page.photos || [];
+      const page = res[0] || {}; const list = Array.isArray(page) ? page : page.photos_data || page.photos || (page.photo_url ? res : []);
       patch.photos = list.map((p) => ({ src: p.photo_url_big || p.photo_url || p.url, source: 'google', date: p.photo_date || null })).filter((p) => p.src);
       if (!patch.photos.length && l.main_photo) patch.photos = [{ src: l.main_photo, source: 'google' }];
       return logCost(env, 'photos', patch.photos.length, patch.photos.length * 0.002);
