@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { api } from '../api.js';
 
 export const TABS = [
   ['home', '( HOME )'], ['callcenter', '( CALLCENTER )'], ['leads', '( LEADS )'],
@@ -73,6 +74,62 @@ export function Lightbox({ photos, index, onClose, onIndex }) {
       <img src={p.src} alt="" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 8, cursor: 'default', boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }} />
       {photos.length > 1 && <><Arrow dir={-1} /><Arrow dir={1} /></>}
       <span className="small" style={{ position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)', color: 'var(--muted)' }}>{index + 1} of {photos.length}{p.source ? `, ${p.source === 'yours' ? 'yours' : 'from Google'}` : ''} · click outside to close</span>
+    </div>
+  );
+}
+
+// The site builder block: preset, build, loader, preview, link, send buttons. Used in the callcenter and leads dropdowns.
+export function SitePanel({ lead, settings, onLead, toast }) {
+  const presets = settings?.presets || [];
+  const site = lead.site || {};
+  const [preset, setPreset] = useState(site.preset || (presets[0] && presets[0].name) || '');
+  const [busy, setBusy] = useState(false);
+  const [full, setFull] = useState(false);
+  const building = busy || site.status === 'building';
+  const build = async () => {
+    if (!settings?.anthropic_key_last4) { toast('Add your Claude API key in settings first'); return; }
+    setBusy(true);
+    try { onLead(await api.build(lead.id, preset)); } catch (e) { toast('Build failed: ' + e.message); }
+    setBusy(false);
+  };
+  const vars = { business: lead.name, owner: lead.owner || 'there', phone: lead.phone || '', link: site.url || '', me: settings?.me || '', my_phone: settings?.my_phone || '', plan: lead.plan || '' };
+  const fill = (tpl) => (tpl || '').replace(/\{(\w+)\}/g, (_, k) => (k in vars ? vars[k] : ''));
+  const smsHref = lead.phone ? `sms:${lead.phone.replace(/[^+\d]/g, '')}?&body=${encodeURIComponent(fill(settings?.tpl_text))}` : null;
+  const mailHref = lead.email ? `mailto:${lead.email}?subject=${encodeURIComponent(fill(settings?.tpl_email_subject))}&body=${encodeURIComponent(fill(settings?.tpl_email))}` : null;
+  const copy = () => { navigator.clipboard.writeText(site.url); toast('link copied'); };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <select className="input" value={preset} onChange={(e) => setPreset(e.target.value)} aria-label="Preset" style={{ flex: '1 1 auto', minHeight: 44 }}>
+          {presets.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+        </select>
+        <Pill small onClick={build} disabled={building}>{site.status === 'ready' ? 'Rebuild' : 'Build site'}</Pill>
+      </div>
+      {building && <div style={{ aspectRatio: '16 / 10', borderRadius: 8, background: 'var(--box)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}><div className="loader"><span /><span /><span /></div><span className="small muted">writing the site, about a minute; you can close this and keep calling</span></div>}
+      {!building && site.status === 'ready' && (<>
+        <div style={{ position: 'relative', aspectRatio: '16 / 10', borderRadius: 8, overflow: 'hidden', background: '#fff', border: '1px solid var(--line)' }}>
+          <iframe title="site preview" src={site.url} style={{ width: 1280, height: 800, border: 0, transform: 'scale(0.265)', transformOrigin: 'top left', pointerEvents: 'none' }} />
+          <button onClick={() => setFull(true)} aria-label="Open fullscreen" style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: 999, border: 0, background: 'rgba(15,59,46,0.85)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{I.expand}</button>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: 13 }}>
+          <a href={site.url} target="_blank" rel="noreferrer" style={{ color: 'var(--bright)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{site.url.replace(/^https?:\/\//, '')}</a>
+          <button className="btn-ghost" onClick={copy} style={{ height: 32, padding: '0 12px', flexShrink: 0 }}>copy</button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+          <span>send the link:</span>
+          {smsHref ? <a className="ring lg" href={smsHref} aria-label="Text the link">{I.msg}</a> : <span className="ring lg off" aria-label="No phone">{I.msg}</span>}
+          {mailHref ? <a className="ring lg" href={mailHref} aria-label="Email the link">{I.mail}</a> : <span className="ring lg off" title="no email found for this business">{I.mail}</span>}
+          <span style={{ letterSpacing: 0, textTransform: 'none', fontWeight: 400 }}>v{site.version}{site.preset ? `, ${site.preset}` : ''}</span>
+        </div>
+      </>)}
+      {!building && site.status === 'error' && <span className="small" style={{ color: 'var(--red)' }}>{site.error}</span>}
+      {!building && !site.status && <span className="small muted">builds a one-page site from the photos and details above; about a minute</span>}
+      {full && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 70, background: '#F4F1EA' }}>
+          <iframe title="site" src={site.url} style={{ width: '100%', height: '100%', border: 0 }} />
+          <button onClick={() => setFull(false)} aria-label="Close" style={{ position: 'absolute', top: 20, right: 20, width: 44, height: 44, borderRadius: 999, border: '1px solid rgba(30,43,34,0.3)', background: 'rgba(244,241,234,0.95)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{I.xDark}</button>
+        </div>
+      )}
     </div>
   );
 }

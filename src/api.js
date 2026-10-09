@@ -28,6 +28,7 @@ export const api = {
   leads: (status) => call('GET', `/api/leads${status ? `?status=${encodeURIComponent(status)}` : ''}`),
   patchLead: (id, patch) => call('PATCH', `/api/leads?id=${encodeURIComponent(id)}`, patch),
   enrich: (id) => call('POST', '/api/enrich', { id }),
+  build: (id, preset) => call('POST', '/api/build', { id, preset }),
   diag: (niche, town, check) => call('POST', '/api/diag', { niche, town, check }),
   clear: (status) => call('POST', '/api/clear', { status }),
   upload: async (leadId, file) => {

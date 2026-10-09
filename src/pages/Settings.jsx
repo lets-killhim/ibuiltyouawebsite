@@ -4,7 +4,7 @@ import { I } from '../components/ui.jsx';
 
 const KEYS = [
   ['outscraper_key', 'Outscraper, for finding businesses'],
-  ['anthropic_key', 'Claude, for writing the sites (v2)'],
+  ['anthropic_key', 'Claude, for writing the sites'],
   ['twilio_sid', 'Twilio account SID, for calls and texts (v2)'],
   ['twilio_token', 'Twilio auth token (v2)'],
   ['cloudflare_token', 'Cloudflare, for hosting (v2)'],
@@ -58,6 +58,7 @@ export default function Settings({ settings, onSaved, toast }) {
               <input className="input" value={keys[k] ?? (s[k + '_last4'] ? '••••••••' + s[k + '_last4'] : '')} onChange={(e) => saveKey(k, e.target.value)} placeholder={k === 'outscraper_key' ? 'paste the key from outscraper.com → API' : 'not needed yet'} />
             </label>
           ))}
+          <label className="field" style={{ fontSize: 13 }}>Claude model for site builds<input className="input" value={s.claude_model || ''} onChange={(e) => save({ claude_model: e.target.value })} placeholder="claude-sonnet-5-5" /></label>
           <label className="field" style={{ fontSize: 13 }}>your name, as you sign messages<input className="input" value={s.me || ''} onChange={(e) => save({ me: e.target.value })} /></label>
           <label className="field" style={{ fontSize: 13 }}>your phone<input className="input" value={s.my_phone || ''} onChange={(e) => save({ my_phone: e.target.value })} /></label>
           <label className="field" style={{ fontSize: 13 }}>your sending email<input className="input" value={s.my_email || ''} onChange={(e) => save({ my_email: e.target.value })} /></label>

@@ -46,3 +46,15 @@ create table if not exists costs (
 
 -- photos you drag into a lead's gallery
 insert into storage.buckets (id, name, public) values ('photos', 'photos', true) on conflict (id) do nothing;
+
+-- built sites (added in v1.1): run this block if your database predates it
+create table if not exists sites (
+  id uuid primary key default gen_random_uuid(),
+  lead_id uuid references leads(id) on delete cascade,
+  token text unique,
+  preset text, version int default 1,
+  html text,
+  model text, input_tokens int, output_tokens int,
+  created_at timestamptz default now()
+);
+create index if not exists sites_lead on sites(lead_id);

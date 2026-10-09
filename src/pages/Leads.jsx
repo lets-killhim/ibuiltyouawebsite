@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api, WARM, fmtMeeting } from '../api.js';
-import { I, Socials, Lightbox } from '../components/ui.jsx';
+import { I, Socials, Lightbox, SitePanel } from '../components/ui.jsx';
 
 const STEPS = [
   ['Domain purchased', 'https://dash.cloudflare.com/?to=/:account/domains/register'],
@@ -31,7 +31,7 @@ export default function Leads({ settings, openId, toast, refreshCounts }) {
     <div className="page">
       <div className="head"><h1>{sorted.length} <em>clients.</em></h1></div>
       <div className="rows">
-        {sorted.map((l) => <ClientRow key={l.id} lead={l} open={!!open[l.id]} toggle={() => setOpen((o) => ({ ...o, [l.id]: !o[l.id] }))} patch={patch} settings={settings} toast={toast} refreshCounts={refreshCounts} setBox={setBox} />)}
+        {sorted.map((l) => <ClientRow key={l.id} lead={l} open={!!open[l.id]} toggle={() => setOpen((o) => ({ ...o, [l.id]: !o[l.id] }))} patch={patch} settings={settings} toast={toast} refreshCounts={refreshCounts} setBox={setBox} patchLocal={(u) => setLeads((ls) => ls.map((x) => (x.id === u.id ? u : x)))} />)}
         {sorted.length > 0 ? <div className="end" /> : <span className="muted" style={{ padding: '24px 0' }}>Nothing confirmed yet. Hit the green check on a lead in the callcenter and it lands here.</span>}
       </div>
       {box && <Lightbox photos={box.photos} index={box.index} onClose={() => setBox(null)} onIndex={(i) => setBox({ ...box, index: i })} />}
@@ -39,7 +39,7 @@ export default function Leads({ settings, openId, toast, refreshCounts }) {
   );
 }
 
-function ClientRow({ lead: l, open, toggle, patch, settings, toast, refreshCounts, setBox }) {
+function ClientRow({ lead: l, open, toggle, patch, settings, toast, refreshCounts, setBox, patchLocal }) {
   const [notes, setNotes] = useState(l.notes || '');
   const [editOwner, setEditOwner] = useState(false);
   const [owner, setOwner] = useState(l.owner || '');
@@ -93,10 +93,7 @@ function ClientRow({ lead: l, open, toggle, patch, settings, toast, refreshCount
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <span className="sect">their site</span>
-            <div style={{ aspectRatio: '16 / 10', borderRadius: 8, border: '1.5px dashed ' + (site.status ? 'rgba(191,224,184,0.4)' : 'var(--red)'), display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, color: site.status ? 'var(--muted)' : 'var(--red)', fontSize: 14 }}>
-              {site.status ? site.status : <><span style={{ width: 10, height: 10, borderRadius: 999, background: 'var(--red)' }} />no site built yet</>}
-            </div>
-            <span className="small muted">the site builder, the edit chat and send-the-link arrive in v2</span>
+            <SitePanel lead={l} settings={settings} onLead={(u) => patchLocal(u)} toast={toast} />
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 22, fontSize: 14 }}>

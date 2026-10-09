@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api, WARM, fmtMeeting } from '../api.js';
-import { I, Pill, Socials, MonthGrid, TimeEntry, fmtTime, WarmthPicker, Lightbox } from '../components/ui.jsx';
+import { I, Pill, Socials, MonthGrid, TimeEntry, fmtTime, WarmthPicker, Lightbox, SitePanel } from '../components/ui.jsx';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -16,7 +16,6 @@ export default function Callcenter({ settings, toast, refreshCounts, summary }) 
   const [popup, setPopup] = useState(null); // {id, kind, step, date, hour, ampm, notes}
   const [enriching, setEnriching] = useState(null);
   const [scanErr, setScanErr] = useState(null);
-  const [mode, setMode] = useState('quick');
   const [box, setBox] = useState(null); // { photos, index }
   const [find, setFind] = useState('');
   const timers = useRef([]);
@@ -33,7 +32,7 @@ export default function Callcenter({ settings, toast, refreshCounts, summary }) 
     if (!settings?.has_outscraper) { toast('Add your Outscraper key in settings first'); return; }
     setPhase('scanning'); setScan(null); setScanErr(null);
     try {
-      const s = await api.startScan(niche, where, mode);
+      const s = await api.startScan(niche, where, 'thorough');
       setScan(s);
       poll(s.id);
     } catch (e) { setPhase(leads.length ? 'done' : 'idle'); toast(e.message); }
@@ -98,11 +97,7 @@ export default function Callcenter({ settings, toast, refreshCounts, summary }) 
         </label>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
           <Pill onClick={startScan} disabled={phase === 'scanning'}>{phase === 'scanning' ? 'Scanning' : phase === 'done' ? 'Scan again' : 'Scan'}</Pill>
-          <div className="filters" style={{ gap: 16, paddingBottom: 0 }}>
-            <button className={mode === 'quick' ? 'on' : ''} onClick={() => setMode('quick')}>( quick )</button>
-            <button className={mode === 'thorough' ? 'on' : ''} onClick={() => setMode('thorough')}>( thorough )</button>
-            <span className="small muted" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>{estimate(niche, where, mode)}</span>
-          </div>
+          <span className="small muted">{estimate(niche, where)}</span>
         </div>
       </div>
 
@@ -139,7 +134,7 @@ export default function Callcenter({ settings, toast, refreshCounts, summary }) 
       <div className="rows">
         {shown.map((l) => (
           <LeadRow key={l.id} lead={l} open={!!open[l.id]} toggle={() => setOpen((o) => ({ ...o, [l.id]: !o[l.id] }))}
-            popup={popup && popup.id === l.id ? popup : null} setPopup={setPopup} patch={patch} trash={trash} enriching={!!(enriching && enriching.has(l.id))} setBox={setBox} />
+            popup={popup && popup.id === l.id ? popup : null} setPopup={setPopup} patch={patch} trash={trash} enriching={!!(enriching && enriching.has(l.id))} setBox={setBox} settings={settings} toast={toast} onLead={(u) => setLeads((ls) => ls.map((x) => (x.id === u.id ? u : x)))} />
         ))}
         {shown.length > 0 && <div className="end" />}
         {phase === 'idle' && leads.length === 0 && <span className="muted" style={{ padding: '24px 0' }}>Type a business and some towns, then scan. Every business we find has a phone number and no real website.</span>}
@@ -152,14 +147,12 @@ export default function Callcenter({ settings, toast, refreshCounts, summary }) 
   );
 }
 
-function estimate(niche, where, mode) {
+function estimate(niche, where) {
   const phr = niche.split('/').filter((t) => t.trim()).length || 1; const towns = where.split(',').filter((t) => t.trim()).length || 1;
-  const rows = towns * phr * (mode === 'thorough' ? 400 : 150);
-  return `${mode === 'thorough' ? '400' : '150'} results per town per phrasing, up to ${rows} rows, about $${(rows * 0.003).toFixed(2)} worst case; for a big metro add a neighboring town`;
+  return `~$${(towns * phr * 1.2).toFixed(2)}`;
 }
 
-function LeadRow({ lead: l, open, toggle, popup, setPopup, patch, trash, enriching, setBox }) {
-  const [preset, setPreset] = useState('pools');
+function LeadRow({ lead: l, open, toggle, popup, setPopup, patch, trash, enriching, setBox, settings, onLead, toast }) {
   const first = l.name.split(' ')[0];
   const labeled = l.status === 'callback' || l.status === 'confirmed';
 
@@ -229,11 +222,8 @@ function LeadRow({ lead: l, open, toggle, popup, setPopup, patch, trash, enrichi
               {(l.photos || []).slice(0, 12).map((p, i) => <img key={i} src={p.src} alt="" loading="lazy" style={{ cursor: 'zoom-in' }} onClick={() => setBox({ photos: l.photos, index: i })} />)}
             </div>
           </div>
-          <div style={{ flex: '0 1 300px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <span className="small muted">pick a preset</span>
-            <div className="chips">{['pools', 'remodel', 'construction', 'services'].map((p) => <button key={p} className={'chip' + (preset === p ? ' on' : '')} onClick={() => setPreset(p)}>{p}</button>)}</div>
-            <Pill small disabled>Build site</Pill>
-            <span className="small muted">site builder arrives in v2; everything above is live data</span>
+          <div style={{ flex: '0 1 340px', minWidth: 0 }}>
+            <SitePanel lead={l} settings={settings} onLead={onLead} toast={toast} />
           </div>
         </div>
       )}

@@ -9,7 +9,7 @@ const PER_TOWN = { quick: 150, thorough: 400 };   // results asked for per town;
 
 export async function onRequestPost({ request, env }) {
   try {
-    const { niche, where, mode = 'quick' } = await request.json();
+    const { niche, where, mode = 'thorough' } = await request.json();
     const phrasings = String(niche || '').split('/').map((t) => t.trim()).filter(Boolean);
     const towns = String(where || '').split(',').map((t) => t.trim()).filter(Boolean);
     if (!phrasings.length || !towns.length) return bad('business type and at least one town are required');
