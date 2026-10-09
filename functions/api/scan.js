@@ -2,7 +2,7 @@ import { db, json, bad, getSettings, logCost } from '../_lib/db.js';
 import { os } from '../_lib/outscraper.js';
 import { toLead, hasSite, siteOf } from '../_lib/leads.js';
 
-const FIELDS = 'place_id,google_id,name,phone,site,website,full_address,city,state,postal_code,rating,reviews,category,type,working_hours,owner_title,photos_count,verified,location_link,photo,logo,business_status';
+const FIELDS = 'place_id,google_id,name,phone,website,site,address,full_address,city,state,state_code,postal_code,rating,reviews,type,category,subtypes,owner_title,photos_count,verified,location_link,photo,logo,business_status';
 const USD_PER_ROW = 0.003;
 
 export async function onRequestPost({ request, env }) {

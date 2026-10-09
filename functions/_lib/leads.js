@@ -34,8 +34,8 @@ export function toLead(row, scanId) {
   return {
     place_id: placeId, scan_id: scanId,
     name: row.name, phone: row.phone || null, phone_digits: digits(row.phone),
-    address: row.full_address || null, city: row.city || null, state: row.state || null, zip: row.postal_code || null,
-    rating: row.rating ?? null, reviews: +row.reviews || 0, category: row.category || row.type || null,
+    address: row.address || row.full_address || null, city: row.city || null, state: row.state_code || row.state || null, zip: row.postal_code || null,
+    rating: row.rating ?? null, reviews: +row.reviews || 0, category: row.type || row.category || (row.subtypes ? String(row.subtypes).split(',')[0].trim() : null),
     hours: '', owner: null, site_seen: siteOf(row) || null,
     maps_url: row.location_link || (placeId ? `https://www.google.com/maps/place/?q=place_id:${placeId}` : null),
     main_photo: row.photo || null, logo: row.logo || null,

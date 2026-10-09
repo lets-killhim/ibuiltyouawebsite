@@ -22,6 +22,16 @@ function firstSocial(pages, rx, phoneDigits, name) {
   return best;
 }
 
+// Outscraper wraps the photos response as data[0][0].photos_data; be tolerant of any nesting.
+export function extractPhotos(res) {
+  let node = res;
+  while (Array.isArray(node) && node.length) node = node[0];
+  if (!node || typeof node !== 'object') return [];
+  if (node.photo_url || node.photo_url_big) return [node];
+  for (const v of Object.values(node)) if (Array.isArray(v) && v.length && v.some((p) => p && typeof p === 'object' && (p.photo_url || p.photo_url_big || p.original_photo_url))) return v;
+  return [];
+}
+
 export async function onRequestPost({ request, env }) {
   try {
     const { id } = await request.json();
@@ -35,22 +45,29 @@ export async function onRequestPost({ request, env }) {
     const errs = [];
 
     const photosJob = os.photos(key, l.place_id, 15).then((res) => {
-      const page = res[0] || {}; const list = Array.isArray(page) ? page : page.photos_data || page.photos || (page.photo_url ? res : []);
-      patch.photos = list.map((p) => ({ src: p.photo_url_big || p.photo_url || p.url, source: 'google', date: p.photo_date || null })).filter((p) => p.src);
+      const list = extractPhotos(res);
+      patch.photos = list.map((p) => ({ src: p.photo_url_big || p.photo_url || p.original_photo_url || p.url, source: 'google', date: p.photo_date || null })).filter((p) => p.src);
       if (!patch.photos.length && l.main_photo) patch.photos = [{ src: l.main_photo, source: 'google' }];
       return logCost(env, 'photos', patch.photos.length, patch.photos.length * 0.002);
     }).catch((e) => { errs.push('photos: ' + e.message); if (l.main_photo) patch.photos = [{ src: l.main_photo, source: 'google' }]; });
 
-    // one query per network, each a small synchronous call: the phone number is the unique key
-    const social = (site, rx, urlKey, matchKey) => {
-      if (!l.phone) return Promise.resolve();
-      return os.search(key, `"${l.phone}" site:${site}`).then((res) => {
-        const [url, how] = firstSocial(res, rx, pd, l.name);
-        patch[urlKey] = url; patch[matchKey] = how;
-        return logCost(env, 'search', 1, 0.003);
-      }).catch((e) => { errs.push(site + ': ' + e.message); });
+    // Facebook: the phone number first (unique), then name + city. Instagram: name + city (phones are rarely in IG text).
+    const national = pd.length === 10 ? `${pd.slice(0, 3)}-${pd.slice(3, 6)}-${pd.slice(6)}` : l.phone;
+    const city = l.city || '';
+    const social = async (site, rx, urlKey, matchKey, queries) => {
+      try {
+        for (const q of queries) {
+          const res = await os.search(key, q);
+          await logCost(env, 'search', 1, 0.003);
+          const [url, how] = firstSocial(res, rx, pd, l.name);
+          if (url) { patch[urlKey] = url; patch[matchKey] = how; return; }
+        }
+        patch[urlKey] = null; patch[matchKey] = null;
+      } catch (e) { errs.push(site + ': ' + e.message); }
     };
-    await Promise.all([photosJob, social('facebook.com', FB, 'facebook_url', 'fb_match'), social('instagram.com', IG, 'instagram_url', 'ig_match')]);
+    const fbQueries = [l.phone ? `"${national}" site:facebook.com` : null, `"${l.name}" ${city} site:facebook.com`].filter(Boolean);
+    const igQueries = [`"${l.name}" ${city} site:instagram.com`];
+    await Promise.all([photosJob, social('facebook.com', FB, 'facebook_url', 'fb_match', fbQueries), social('instagram.com', IG, 'instagram_url', 'ig_match', igQueries)]);
     if (errs.length) patch.enrich_error = errs.join('; ');
 
     const [u] = await d.update('leads', `id=eq.${id}`, patch);
