@@ -24,20 +24,13 @@ export function brief(l, s) {
     `photos:${photos.length ? '\n' + photos.join('\n') + '\n  no before/after pairs identified' : ' none supplied'}`,
     `existing_brand (logo, colors, fonts): ${l.logo ? 'logo: ' + l.logo : 'none'}`,
     `differentiators (what they actually do differently): ${na}`,
-    `primary_cta: book consultation`,
     `phone / email / address: ${l.phone || na} / ${l.email || na} / ${l.address || na}`,
     `social: ${[l.facebook_url && 'Facebook ' + l.facebook_url, l.instagram_url && 'Instagram ' + l.instagram_url].filter(Boolean).join(', ') || 'none'}`,
-    `booking_mode: request`,
-    `calcom_link: placeholder`,
     `form_endpoint: ${s.form_endpoint || 'placeholder'}`,
     `form_access_key: ${s.form_access_key || 'placeholder'}`,
     `client_email: ${l.email || 'placeholder'}`,
-    `closed_days: Sat, Sun`,
-    `time_slots: Morning 8–11am, Midday 11am–2pm, Afternoon 2–5pm`,
     `direction: auto`,
     `previous_direction: ${l.site?.direction || 'none'}`,
-    `stack: single-file HTML`,
-    `pages: single long-scroll homepage`,
   ];
   return lines.join('\n');
 }
@@ -56,7 +49,7 @@ export function systemFor(prompt, l, s) {
   return prompt.trimEnd() + '\n\n## CLIENT BRIEF\n\n' + filled + '\n';
 }
 
-const USER = 'Build the site for the CLIENT BRIEF above. Output in this order: the short design spec (name the direction letter), then the complete single-file index.html inside one ```html code block, then the list of every [[PLACEHOLDER]] the client needs to fill. Nothing else.';
+const USER = 'Build the site for the CLIENT BRIEF above. Output in this order: the short design spec (name the direction letter), then the complete single-file index.html inside one ```html code block, then the short list titled "Missing from the brief". Nothing else.';
 
 
 // Dollars per million tokens, input then output, from the Claude pricing page. Matched by family so a
