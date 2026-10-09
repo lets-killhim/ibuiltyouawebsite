@@ -1,6 +1,6 @@
 // One call to the Claude API, streamed so a long page can't be cut off by an idle connection.
 // Returns { text, input_tokens, output_tokens, model, stop_reason }.
-export async function askClaude(key, { model, system, user, max_tokens = 32000 }) {
+export async function askClaude(key, { model, system, user, max_tokens = 64000 }) {
   const call = (maxTokens) => fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
@@ -10,7 +10,7 @@ export async function askClaude(key, { model, system, user, max_tokens = 32000 }
   if (!res.ok) {
     const msg = await res.text().catch(() => '');
     // a model with a smaller output window rejects the limit; try once at half
-    if (res.status === 400 && /max_tokens/i.test(msg) && max_tokens > 16000) res = await call(16000);
+    if (res.status === 400 && /max_tokens/i.test(msg) && max_tokens > 32000) res = await call(32000);
     if (!res.ok) throw new Error(`Claude ${res.status}: ${msg.slice(0, 300)}`);
   }
   const reader = res.body.getReader();
