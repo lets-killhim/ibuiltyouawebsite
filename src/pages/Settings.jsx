@@ -105,7 +105,7 @@ export default function Settings({ settings, onSaved, toast }) {
               <button className="btn-ghost" onClick={() => setNaming(false)}>cancel</button>
             </div>
           )}
-          <span className="small muted">the preset is a finished layout; the prompt only decides tone and which scraped fields go where</span>
+          <span className="small muted">each preset is a design brief: palette, typefaces, the one signature element, and a feeling. The rules that never change (nothing invented, phone first, mobile first, the hard bans) are built into every build</span>
         </div>
 
         <div className="col">
