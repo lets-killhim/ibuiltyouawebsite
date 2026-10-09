@@ -27,6 +27,23 @@ export async function onRequestPost({ request, env }) {
     if (!key) return bad('no Outscraper key in settings');
     const out = {};
     const q = `${niche}, ${town}, USA`;
+    // 0. how many results each phrasing finds for this town (the real question)
+    const count = async (label, body) => {
+      const r = await settle(key, await call(key, 'POST', '/google-maps-search', {}, { organizationsPerQueryLimit: 60, language: 'en', region: 'us', async: false, fields: 'name,city,website,phone', ...body }));
+      const rows = r.data && r.data.data ? [].concat(...[].concat(r.data.data)) : [];
+      const cities = {}; rows.forEach((x) => { cities[x.city || '?'] = (cities[x.city || '?'] || 0) + 1; });
+      out[label] = { rows: rows.length, no_website: rows.filter((x) => !x.website).length, cities, sample: rows.slice(0, 4).map((x) => x.name), ms: r.ms, http: r.status, note: rows.length ? undefined : trim(r.data, 300) };
+    };
+    await count('A_town_in_query', { query: [q] });
+    await count('B_near_town', { query: [`${niche} near ${town}`] });
+    let geo = null;
+    try {
+      const g = await settle(key, await call(key, 'GET', '/geocoding', { query: `${town}, USA` }));
+      const gd = g.data && g.data.data ? [].concat(...[].concat(g.data.data)) : [];
+      geo = gd[0] || null; out.geocode = { http: g.status, raw: trim(g.data, 500) };
+    } catch (e) { out.geocode = { error: e.message }; }
+    if (geo && (geo.latitude || geo.lat)) await count('C_coordinates_center', { query: [niche], coordinates: `${geo.latitude || geo.lat},${geo.longitude || geo.lng || geo.lon}` });
+    await count('D_county_or_metro', { query: [`${niche}, ${town.replace(/\b(CO|AZ|TX|FL|CA|WA|NV|UT|NM|OR|ID|GA|NC|SC|TN|OK|KS|MO|IL|OH|MI|PA|NY|NJ|MA|VA|MD|MN|WI|IA|NE|KY|AL|MS|LA|AR|IN|DC|HI|AK)\b/, '').trim()} metro area, USA`] });
     // 1. maps search, 3 rows, no fields filter
     let a = await settle(key, await call(key, 'POST', '/google-maps-search', {}, { query: [q], organizationsPerQueryLimit: 3, language: 'en', region: 'us', async: false }));
     const rowsA = a.data && a.data.data ? [].concat(...[].concat(a.data.data)) : [];
