@@ -79,6 +79,9 @@ export function Lightbox({ photos, index, onClose, onIndex }) {
 }
 
 // The site builder block: preset, build, loader, preview, link, send buttons. Used in the callcenter and leads dropdowns.
+// 'claude-fable-5-1' -> 'Fable 5.1'
+const modelName = (id) => { const m = /claude-([a-z]+)-(\d+)(?:-(\d+))?/.exec(id || ''); return m ? `${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}${m[3] ? '.' + m[3] : ''}` : id; };
+
 export function SitePanel({ lead, settings, onLead, toast }) {
   const presets = settings?.presets || [];
   const site = lead.site || {};
@@ -123,7 +126,7 @@ export function SitePanel({ lead, settings, onLead, toast }) {
           <span>send the link:</span>
           {smsHref ? <a className="ring lg" href={smsHref} aria-label="Text the link">{I.msg}</a> : <span className="ring lg off" aria-label="No phone">{I.msg}</span>}
           {mailHref ? <a className="ring lg" href={mailHref} aria-label="Email the link">{I.mail}</a> : <span className="ring lg off" title="no email found for this business">{I.mail}</span>}
-          <span style={{ letterSpacing: 0, textTransform: 'none', fontWeight: 400 }}>v{site.version}{site.preset ? `, ${site.preset}` : ''}</span>
+          <span style={{ letterSpacing: 0, textTransform: 'none', fontWeight: 400 }}>v{site.version}{site.preset ? `, ${site.preset}` : ''}{site.model ? `, ${modelName(site.model)}` : ''}</span>
         </div>
       </>)}
       {!building && site.status === 'error' && <span className="small" style={{ color: 'var(--red)' }}>{site.error}</span>}

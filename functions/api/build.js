@@ -56,7 +56,7 @@ export async function onRequestPost({ request, env }) {
     await d.insert('sites', [{ lead_id: id, token, preset: presetDef.name, version, html, model: r.model, input_tokens: r.input_tokens, output_tokens: r.output_tokens }]);
     await logCost(env, `claude build (${r.model || model})`, r.input_tokens + r.output_tokens, buildCost(r.model || model, r.input_tokens, r.output_tokens));
     const url = `${new URL(request.url).origin}/s/${token}`;
-    const [u] = await d.update('leads', `id=eq.${id}`, { site: { status: 'ready', preset: presetDef.name, token, url, version, built_at: new Date().toISOString(), error: null } });
+    const [u] = await d.update('leads', `id=eq.${id}`, { site: { status: 'ready', preset: presetDef.name, token, url, version, model: r.model || model, built_at: new Date().toISOString(), error: null } });
     return json(present(u));
   } catch (e) {
     if (leadId) { try { const [l] = await d.select('leads', `id=eq.${leadId}`); await d.update('leads', `id=eq.${leadId}`, { site: { ...(l?.site || {}), status: l?.site?.token ? 'ready' : 'error', error: e.message } }); } catch { /* ignore */ } }
