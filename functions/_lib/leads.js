@@ -31,7 +31,11 @@ export function score(row) {
 export function toLead(row, scanId) {
   const { score: sc, tier } = score(row);
   const placeId = row.place_id || row.google_id;
+  const site = siteOf(row).toLowerCase();
+  const fromListing = (host) => (site.includes(host) ? siteOf(row) : null);
   return {
+    facebook_url: fromListing('facebook.com'), fb_match: fromListing('facebook.com') ? 'from their Google listing' : null,
+    instagram_url: fromListing('instagram.com'), ig_match: fromListing('instagram.com') ? 'from their Google listing' : null,
     place_id: placeId, scan_id: scanId,
     name: row.name, phone: row.phone || null, phone_digits: digits(row.phone),
     address: row.address || row.full_address || null, city: row.city || null, state: row.state_code || row.state || null, zip: row.postal_code || null,

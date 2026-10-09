@@ -73,7 +73,10 @@ export async function onRequestPost({ request, env }) {
     };
     const fbQueries = [l.phone ? `"${national}" site:facebook.com` : null, `"${l.name}" ${city} site:facebook.com`].filter(Boolean);
     const igQueries = [`"${l.name}" ${city} site:instagram.com`];
-    await Promise.all([photosJob, social('facebook.com', FB, 'facebook_url', 'fb_match', fbQueries), social('instagram.com', IG, 'instagram_url', 'ig_match', igQueries)]);
+    const jobs = [photosJob];
+    if (!l.facebook_url) jobs.push(social('facebook.com', FB, 'facebook_url', 'fb_match', fbQueries));
+    if (!l.instagram_url) jobs.push(social('instagram.com', IG, 'instagram_url', 'ig_match', igQueries));
+    await Promise.all(jobs);
     if (errs.length) patch.enrich_error = errs.join('; ');
 
     const [u] = await d.update('leads', `id=eq.${id}`, patch);

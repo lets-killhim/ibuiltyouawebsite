@@ -22,10 +22,24 @@ async function settle(key, r) { // follow an async task for up to ~60s
 
 export async function onRequestPost({ request, env }) {
   try {
-    const { niche = 'pool builders', town = 'Scottsdale AZ' } = await request.json().catch(() => ({}));
+    const { niche = 'pool builders', town = 'Scottsdale AZ', check } = await request.json().catch(() => ({}));
     const s = await getSettings(env); const key = s.outscraper_key;
     if (!key) return bad('no Outscraper key in settings');
     const out = {};
+    if (check) {
+      // Look one business up by name and say what the scan would do with it.
+      const r = await settle(key, await call(key, 'POST', '/google-maps-search', {}, { query: [check], organizationsPerQueryLimit: 3, language: 'en', region: 'us', async: false }));
+      const rows = r.data && r.data.data ? [].concat(...[].concat(r.data.data)) : [];
+      const { db } = await import('../_lib/db.js');
+      const { hasSite } = await import('../_lib/leads.js');
+      const found = [];
+      for (const x of rows) {
+        const inDb = x.place_id ? await db(env).select('leads', `select=status,name&place_id=eq.${x.place_id}`) : [];
+        const verdict = hasSite(x) ? `dropped: has a website (${x.website})` : (x.business_status || 'OPERATIONAL') !== 'OPERATIONAL' ? `dropped: ${x.business_status}` : !x.phone ? 'dropped: no phone' : inDb.length ? `already in your lists as "${inDb[0].status}"` : 'would be kept; if it is not in your list it was outside the town radius or beyond the 150 results Google returned for your phrasing';
+        found.push({ name: x.name, address: x.address, phone: x.phone, website: x.website || null, business_status: x.business_status, type: x.type, lat: x.latitude, lng: x.longitude, verdict });
+      }
+      return json({ check, found: found.length ? found : 'nothing came back for that name; add the town, e.g. "Austin Remodeling Experts, Austin TX"' });
+    }
     const q = `${niche}, ${town}, USA`;
     // 0. how many results each phrasing finds for this town (the real question)
     const count = async (label, body) => {

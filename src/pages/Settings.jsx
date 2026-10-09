@@ -41,7 +41,8 @@ export default function Settings({ settings, onSaved, toast }) {
 
   const [diag, setDiag] = useState(null);
   const [diagBusy, setDiagBusy] = useState(false);
-  const runDiag = async () => { setDiagBusy(true); setDiag(null); try { setDiag(await api.diag(s.last_niche || 'pool builders', (s.last_where || 'Scottsdale AZ').split(',')[0].trim())); } catch (e) { setDiag({ error: e.message }); } setDiagBusy(false); };
+  const [check, setCheck] = useState('');
+  const runDiag = async () => { setDiagBusy(true); setDiag(null); try { setDiag(await api.diag(s.last_niche || 'pool builders', (s.last_where || 'Scottsdale AZ').split(',')[0].trim(), check.trim() || undefined)); } catch (e) { setDiag({ error: e.message }); } setDiagBusy(false); };
   const T = (k, label, rows) => (
     <label className="field" style={{ fontSize: 13 }}>{label}<textarea className="input" rows={rows} value={s[k] || ''} onChange={(e) => save({ [k]: e.target.value })} /></label>
   );
@@ -109,8 +110,9 @@ export default function Settings({ settings, onSaved, toast }) {
       <div className="col" style={{ borderTop: '1px solid var(--line)', paddingTop: 24 }}>
         <span className="sect">diagnostics</span>
         <span className="small muted">runs one tiny live scan (3 businesses, a few photos, one search) and shows exactly what Outscraper sends back. Costs under a cent. Copy the output and paste it to Claude when something looks wrong.</span>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <button className="btn-sage" onClick={runDiag} disabled={diagBusy}>{diagBusy ? 'running, up to a minute' : 'test Outscraper'}</button>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input className="input" value={check} onChange={(e) => setCheck(e.target.value)} placeholder='check one business: "Austin Remodeling Experts, Austin TX" (leave empty for the full test)' style={{ flex: '1 1 360px' }} />
+          <button className="btn-sage" onClick={runDiag} disabled={diagBusy}>{diagBusy ? 'running, up to a minute' : check.trim() ? 'check this business' : 'test Outscraper'}</button>
           {diag && <button className="btn-ghost" onClick={() => { navigator.clipboard.writeText(JSON.stringify(diag, null, 2)); toast('copied'); }}>copy output</button>}
         </div>
         {diag && <pre className="input" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 12, lineHeight: 1.4, maxHeight: 420, overflow: 'auto', fontFamily: 'ui-monospace, Menlo, monospace' }}>{JSON.stringify(diag, null, 2)}</pre>}
