@@ -86,7 +86,7 @@ export default function Callcenter({ settings, toast, refreshCounts, summary }) 
   return (
     <div className="page">
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 40, flexWrap: 'wrap' }}>
-        <label className="field" style={{ flex: '1 1 260px', maxWidth: 360 }}>business type
+        <label className="field" style={{ flex: '1 1 260px', maxWidth: 360 }}>business type, use / for more phrasings
           <input className="line" value={niche} onChange={(e) => setNiche(e.target.value)} placeholder="pool builders" />
         </label>
         <label className="field" style={{ flex: '1 1 320px', maxWidth: 520 }}>where, towns separated by commas
@@ -105,13 +105,13 @@ export default function Callcenter({ settings, toast, refreshCounts, summary }) 
 
       {phase === 'scanning' && (
         <span className="small muted">
-          {scan?.towns ? `${scan.towns} towns, ` : ''}waiting on Google Maps{scan?.rows_returned ? `, ${scan.rows_returned} rows so far` : ''}. Usually one to three minutes.
+          {scan?.total ? `${scan.done} of ${scan.total} searches back` : 'starting'}{scan?.rows_returned ? `, ${scan.rows_returned} rows so far` : ''}. Usually one to three minutes; leads appear when every town is in.
         </span>
       )}
       {scanErr && <span className="small" style={{ color: 'var(--red)' }}>scan stopped: {scanErr}</span>}
       {phase === 'done' && scan?.debug && (
         <span className="small muted">
-          {scan.rows_returned} rows from Google Maps, {scan.debug.with_site} had websites, {scan.debug.no_phone} had no phone, {scan.no_site} without a website, {scan.new_leads} new
+          {scan.rows_returned} rows from Google Maps, {scan.debug.with_site} had websites, {scan.debug.no_phone} had no phone{scan.debug.far ? `, ${scan.debug.far} too far from the town` : ''}, {scan.no_site} kept, {scan.new_leads} new
           {Object.keys(scan.debug.known || {}).length > 0 && <>, {Object.entries(scan.debug.known).map(([k, v]) => `${v} already in ${k === 'new' ? 'today' : k === 'callback' ? 'call later' : k}`).join(', ')}</>}
         </span>
       )}

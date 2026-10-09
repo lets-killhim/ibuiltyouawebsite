@@ -6,19 +6,25 @@ const FB = /^https?:\/\/(?:www\.|m\.)?facebook\.com\/([A-Za-z0-9.\-_]+)\/?/i;
 const IG = /^https?:\/\/(?:www\.)?instagram\.com\/([A-Za-z0-9.\-_]+)\/?/i;
 const SKIP = new Set(['pages', 'people', 'search', 'groups', 'events', 'marketplace', 'public', 'login', 'explore', 'p', 'reel', 'reels', 'stories', 'hashtag', 'profile.php', 'sharer', 'share', 'accounts']);
 
+const STOP = new Set(['the', 'and', 'llc', 'inc', 'co', 'company', 'pool', 'pools', 'spa', 'spas', 'service', 'services', 'construction', 'builders', 'contractor', 'contractors', 'remodeling', 'remodel', 'home', 'homes', 'design', 'designs', 'custom', 'group', 'solutions', 'pro', 'pros', 'electric', 'electrician', 'plumbing', 'roofing', 'landscaping', 'repair']);
 function firstSocial(pages, rx, phoneDigits, name) {
-  const toks = name.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((t) => t.length > 2).slice(0, 3);
+  const words = name.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((t) => t.length > 2);
+  const distinct = words.filter((t) => !STOP.has(t));            // the words that actually identify this business
+  const needle = words.join(' ');
   let best = [null, null];
-  for (let page of pages || []) {
-    if (Array.isArray(page)) page = page[0];
-    for (const r of (page && page.organic_results) || []) {
+  const walk = (x, fn) => { if (Array.isArray(x)) x.forEach((y) => walk(y, fn)); else if (x && typeof x === 'object') fn(x); };
+  walk(pages, (page) => {
+    for (const r of page.organic_results || []) {
       const link = r.link || ''; const m = rx.exec(link);
-      if (!m || SKIP.has(m[1].toLowerCase())) continue;
-      const blob = `${r.title || ''} ${r.description || ''} ${link}`.toLowerCase();
-      if (phoneDigits && blob.replace(/\D/g, '').includes(phoneDigits)) return [link, 'matched by phone'];
-      if (!best[0] && toks.length && toks.filter((t) => blob.includes(t)).length >= Math.min(2, toks.length)) best = [link, 'matched by name, check it'];
+      if (!m || SKIP.has(m[1].toLowerCase()) || m[1].includes('...')) continue;
+      const text = `${r.title || ''} ${r.description || ''}`.toLowerCase();
+      if (phoneDigits && phoneDigits.length === 10 && text.replace(/\D/g, '').includes(phoneDigits)) { best = [link, 'matched by phone']; return; }
+      if (best[0]) continue;
+      const titleHasName = (r.title || '').toLowerCase().includes(needle);
+      const distinctHits = distinct.filter((t) => text.includes(t)).length;
+      if (titleHasName || (distinct.length && distinctHits >= Math.min(2, distinct.length) && distinctHits >= 1)) best = [link, 'matched by name, check it'];
     }
-  }
+  });
   return best;
 }
 
