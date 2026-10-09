@@ -85,7 +85,10 @@ export function SitePanel({ lead, settings, onLead, toast }) {
   const [preset, setPreset] = useState(site.preset || (presets[0] && presets[0].name) || '');
   const [busy, setBusy] = useState(false);
   const [full, setFull] = useState(false);
-  const building = busy || site.status === 'building';
+  // A build that started more than 12 minutes ago and never finished was cut off (tab closed, connection
+  // dropped); let the button come back instead of spinning forever.
+  const stale = site.status === 'building' && Date.now() - new Date(site.started_at || 0).getTime() > 12 * 60 * 1000;
+  const building = busy || (site.status === 'building' && !stale);
   const build = async () => {
     if (!settings?.anthropic_key_last4) { toast('Add your Claude API key in settings first'); return; }
     setBusy(true);
@@ -103,10 +106,11 @@ export function SitePanel({ lead, settings, onLead, toast }) {
         <select className="input" value={preset} onChange={(e) => setPreset(e.target.value)} aria-label="Preset" style={{ flex: '1 1 auto', minHeight: 44 }}>
           {presets.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
         </select>
-        <Pill small onClick={build} disabled={building}>{site.status === 'ready' ? 'Rebuild' : 'Build site'}</Pill>
+        <Pill small onClick={build} disabled={building}>{site.token ? 'Rebuild' : 'Build site'}</Pill>
       </div>
-      {building && <div style={{ aspectRatio: '16 / 10', borderRadius: 8, background: 'var(--box)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}><div className="loader"><span /><span /><span /></div><span className="small muted">writing the site, about a minute; you can close this and keep calling</span></div>}
-      {!building && site.status === 'ready' && (<>
+      {stale && !busy && <span className="small" style={{ color: 'var(--red)' }}>the last build was cut off before it finished; build again</span>}
+      {building && <div style={{ aspectRatio: '16 / 10', borderRadius: 8, background: 'var(--box)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}><div className="loader"><span /><span /><span /></div><span className="small muted" style={{ textAlign: 'center', padding: '0 16px' }}>writing the site, a minute or three. Keep the app open; you can close this row and keep calling</span></div>}
+      {!building && site.url && (<>
         <div style={{ position: 'relative', aspectRatio: '16 / 10', borderRadius: 8, overflow: 'hidden', background: '#fff', border: '1px solid var(--line)' }}>
           <iframe title="site preview" src={site.url} style={{ width: 1280, height: 800, border: 0, transform: 'scale(0.265)', transformOrigin: 'top left', pointerEvents: 'none' }} />
           <button onClick={() => setFull(true)} aria-label="Open fullscreen" style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: 999, border: 0, background: 'rgba(15,59,46,0.85)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{I.expand}</button>
@@ -123,7 +127,7 @@ export function SitePanel({ lead, settings, onLead, toast }) {
         </div>
       </>)}
       {!building && site.status === 'error' && <span className="small" style={{ color: 'var(--red)' }}>{site.error}</span>}
-      {!building && !site.status && <span className="small muted">builds a one-page site from the photos and details above; about a minute</span>}
+      {!building && !site.status && <span className="small muted">builds a one-page site from the photos and details above</span>}
       {full && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 70, background: '#F4F1EA' }}>
           <iframe title="site" src={site.url} style={{ width: '100%', height: '100%', border: 0 }} />

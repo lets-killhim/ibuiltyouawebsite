@@ -8,6 +8,23 @@ Use the photos exactly as given, as <img src="..."> with loading="lazy"; never i
 Sections, in order: a hero with the business name and a short tagline you write from the category; services as short lines you infer from the category and name; a photo gallery; a brief about paragraph; a line with the Google rating and review count; contact with the address and phone.
 Never use lorem ipsum, never invent facts: no made-up years in business, team names, prices, awards or testimonials. If something is unknown, leave it out.`;
 
+// Dollars per million tokens, input then output, from the Claude pricing page. Matched by family so a
+// pinned snapshot name still lands on the right row; unknown names assume the priciest.
+const PRICE = [
+  [/fable|mythos/, 10, 50],
+  [/opus-5-5/, 4, 20],
+  [/opus-4-[5-8]|opus-5/, 5, 25],
+  [/opus/, 15, 75],
+  [/sonnet-5/, 2, 10],
+  [/sonnet/, 3, 15],
+  [/haiku-5/, 0.1, 0.5],
+  [/haiku/, 1, 5],
+];
+export function buildCost(model, input, output) {
+  const [, i, o] = PRICE.find(([re]) => re.test(model || '')) || [null, 10, 50];
+  return (input * i + output * o) / 1e6;
+}
+
 export async function onRequestPost({ request, env }) {
   const d = db(env);
   let leadId = null;
@@ -19,8 +36,8 @@ export async function onRequestPost({ request, env }) {
     const s = await getSettings(env);
     if (!s.anthropic_key) return bad('Add your Claude API key in settings first');
     const presetDef = (s.presets || []).find((p) => p.name === preset) || (s.presets || [])[0] || { name: 'default', prompt: '' };
-    const model = s.claude_model || 'claude-sonnet-5-5';
-    await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'building', preset: presetDef.name, error: null } });
+    const model = s.claude_model || 'claude-fable-5-1';
+    await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'building', preset: presetDef.name, error: null, started_at: new Date().toISOString() } });
 
     const facts = {
       business: l.name, phone: l.phone, address: l.address, city: l.city, state: l.state,
@@ -37,7 +54,7 @@ export async function onRequestPost({ request, env }) {
     const version = prev.length ? (prev[0].version || 0) + 1 : 1;
     const token = prev.length && prev[0].token ? prev[0].token : Math.random().toString(36).slice(2, 12);
     await d.insert('sites', [{ lead_id: id, token, preset: presetDef.name, version, html, model: r.model, input_tokens: r.input_tokens, output_tokens: r.output_tokens }]);
-    await logCost(env, 'claude build', r.input_tokens + r.output_tokens, (r.input_tokens * 3 + r.output_tokens * 15) / 1e6);
+    await logCost(env, `claude build (${r.model || model})`, r.input_tokens + r.output_tokens, buildCost(r.model || model, r.input_tokens, r.output_tokens));
     const url = `${new URL(request.url).origin}/s/${token}`;
     const [u] = await d.update('leads', `id=eq.${id}`, { site: { status: 'ready', preset: presetDef.name, token, url, version, built_at: new Date().toISOString(), error: null } });
     return json(present(u));

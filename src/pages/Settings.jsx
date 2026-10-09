@@ -11,6 +11,13 @@ const KEYS = [
   ['stripe_key', 'Stripe, for getting paid (v2)'],
 ];
 
+// Rough cost of one build: ~2k tokens in, ~6k out, at each model's list price.
+const MODELS = [
+  ['claude-fable-5-1', 'Fable 5.1, best design, ~40¢ a build'],
+  ['claude-opus-5-5', 'Opus 5.5, ~15¢ a build'],
+  ['claude-sonnet-5-5', 'Sonnet 5.5, ~7¢ a build'],
+];
+
 export default function Settings({ settings, onSaved, toast }) {
   const [s, setS] = useState(settings || {});
   const [keys, setKeys] = useState({});
@@ -58,7 +65,11 @@ export default function Settings({ settings, onSaved, toast }) {
               <input className="input" value={keys[k] ?? (s[k + '_last4'] ? '••••••••' + s[k + '_last4'] : '')} onChange={(e) => saveKey(k, e.target.value)} placeholder={k === 'outscraper_key' ? 'paste the key from outscraper.com → API' : 'not needed yet'} />
             </label>
           ))}
-          <label className="field" style={{ fontSize: 13 }}>Claude model for site builds<input className="input" value={s.claude_model || ''} onChange={(e) => save({ claude_model: e.target.value })} placeholder="claude-sonnet-5-5" /></label>
+          <label className="field" style={{ fontSize: 13 }}>Claude model for site builds
+            <select className="input" value={s.claude_model || 'claude-fable-5-1'} onChange={(e) => save({ claude_model: e.target.value })}>
+              {MODELS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+            </select>
+          </label>
           <label className="field" style={{ fontSize: 13 }}>your name, as you sign messages<input className="input" value={s.me || ''} onChange={(e) => save({ me: e.target.value })} /></label>
           <label className="field" style={{ fontSize: 13 }}>your phone<input className="input" value={s.my_phone || ''} onChange={(e) => save({ my_phone: e.target.value })} /></label>
           <label className="field" style={{ fontSize: 13 }}>your sending email<input className="input" value={s.my_email || ''} onChange={(e) => save({ my_email: e.target.value })} /></label>

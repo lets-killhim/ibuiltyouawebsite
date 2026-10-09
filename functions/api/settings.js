@@ -9,7 +9,7 @@ const DEFAULTS = {
     { name: 'services', prompt: 'One page for a home services business. Phone number is the hero. Then the three most common jobs with a price range, then reviews, then service area. Fast to read on a phone. Use {business}, {owner}, {phone}, {hours}, {services}, {reviews}, {photos}.' },
   ],
   plans: [],
-  claude_model: 'claude-sonnet-5-5',
+  claude_model: 'claude-fable-5-1',
   tpl_text: "Hey {owner}, it's {me} from the call just now. Here's the site I built for {business}: {link}. Take a look and I'll make any changes you want.",
   tpl_email_subject: 'Your new {business} website',
   tpl_email: "Hi {owner},\n\nGood talking with you. Here's the website I put together for {business}: {link}\n\nEverything on it came from your Google listing and photos, so tell me what to change. If you want it live on your own domain, the plan is {plan}, and you can pay here: {pay_link}\n\n{me}\n{my_phone}",
