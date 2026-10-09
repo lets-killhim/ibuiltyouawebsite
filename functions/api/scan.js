@@ -5,8 +5,7 @@ import { toLead, hasSite } from '../_lib/leads.js';
 const FIELDS = 'place_id,google_id,name,phone,website,site,address,full_address,city,state,state_code,postal_code,latitude,longitude,rating,reviews,type,category,subtypes,owner_title,photos_count,verified,location_link,photo,logo,business_status';
 const USD_PER_ROW = 0.003;
 const RADIUS_KM = 40;          // keep results within ~25 miles of each town's center
-const PER_TOWN = { quick: 150, thorough: 400, wide: 120 };   // rows per search point; wide uses 5 points per town
-const SPREAD_KM = 12;          // how far the extra search points sit from the town center
+const PER_TOWN = { quick: 150, thorough: 400 };   // results asked for per town; Google caps one search at 400
 
 export async function onRequestPost({ request, env }) {
   try {
@@ -14,7 +13,7 @@ export async function onRequestPost({ request, env }) {
     const phrasings = String(niche || '').split('/').map((t) => t.trim()).filter(Boolean);
     const towns = String(where || '').split(',').map((t) => t.trim()).filter(Boolean);
     if (!phrasings.length || !towns.length) return bad('business type and at least one town are required');
-    if (towns.length > (mode === 'wide' ? 4 : mode === 'thorough' ? 6 : 10)) return bad(`${mode === 'wide' ? 4 : mode === 'thorough' ? 6 : 10} towns per ${mode} scan, run it again for more`);
+    if (towns.length > (mode === 'thorough' ? 6 : 10)) return bad(`${mode === 'thorough' ? 6 : 10} towns per ${mode} scan, run it again for more`);
     const settings = await getSettings(env);
     if (!settings.outscraper_key) return bad('Add your Outscraper key in settings first');
     const key = settings.outscraper_key;
@@ -28,14 +27,10 @@ export async function onRequestPost({ request, env }) {
     // 2. one background Maps search per town per phrasing, centered there
     const tasks = [];
     const limit = PER_TOWN[mode] || PER_TOWN.quick;
-    for (const c of centers) {
-      const dLat = SPREAD_KM / 111, dLng = SPREAD_KM / (111 * Math.cos((c.lat * Math.PI) / 180));
-      const points = mode === 'wide' ? [[0, 0], [dLat, 0], [-dLat, 0], [0, dLng], [0, -dLng]] : [[0, 0]];
-      for (const p of phrasings) for (const [a, b] of points) {
-        const t = await os.startMapsSearchAt(key, p, c.lat + a, c.lng + b, { limit, fields: FIELDS });
-        if (!t || !t.id) throw new Error('Outscraper did not return a task id: ' + JSON.stringify(t).slice(0, 200));
-        tasks.push({ town: c.town, lat: c.lat, lng: c.lng, at: [c.lat + a, c.lng + b], phrasing: p, request_id: t.id, status: 'pending' });
-      }
+    for (const c of centers) for (const p of phrasings) {
+      const t = await os.startMapsSearchAt(key, p, c.lat, c.lng, { limit, fields: FIELDS });
+      if (!t || !t.id) throw new Error('Outscraper did not return a task id: ' + JSON.stringify(t).slice(0, 200));
+      tasks.push({ town: c.town, lat: c.lat, lng: c.lng, phrasing: p, request_id: t.id, status: 'pending' });
     }
     const d = db(env);
     const [scan] = await d.insert('scans', [{ niche: mode === 'quick' ? niche : `${niche} (${mode})`, where_text: where, towns: tasks, request_id: tasks[0].request_id, status: 'pending', rows_returned: 0, no_site: 0, new_leads: 0, est_cost_usd: 0 }]);

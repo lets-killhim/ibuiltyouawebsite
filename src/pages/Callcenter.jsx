@@ -99,7 +99,6 @@ export default function Callcenter({ settings, toast, refreshCounts, summary }) 
           <div className="filters" style={{ gap: 16, paddingBottom: 0 }}>
             <button className={mode === 'quick' ? 'on' : ''} onClick={() => setMode('quick')}>( quick )</button>
             <button className={mode === 'thorough' ? 'on' : ''} onClick={() => setMode('thorough')}>( thorough )</button>
-            <button className={mode === 'wide' ? 'on' : ''} onClick={() => setMode('wide')}>( wide )</button>
             <span className="small muted" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>{estimate(niche, where, mode)}</span>
           </div>
         </div>
@@ -152,9 +151,8 @@ export default function Callcenter({ settings, toast, refreshCounts, summary }) 
 
 function estimate(niche, where, mode) {
   const phr = niche.split('/').filter((t) => t.trim()).length || 1; const towns = where.split(',').filter((t) => t.trim()).length || 1;
-  const rows = towns * phr * (mode === 'wide' ? 5 * 120 : mode === 'thorough' ? 400 : 150);
-  const how = mode === 'wide' ? '5 search points per town, 120 each' : mode === 'thorough' ? '1 search point per town, 400 results' : '1 search point per town, 150 results';
-  return `${how}, up to ${rows} rows, about $${(rows * 0.003).toFixed(2)} worst case`;
+  const rows = towns * phr * (mode === 'thorough' ? 400 : 150);
+  return `${mode === 'thorough' ? '400' : '150'} results per town per phrasing, up to ${rows} rows, about $${(rows * 0.003).toFixed(2)} worst case; for a big metro add a neighboring town`;
 }
 
 function LeadRow({ lead: l, open, toggle, popup, setPopup, patch, trash, enriching, setBox }) {
