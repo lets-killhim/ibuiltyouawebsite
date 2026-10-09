@@ -4,7 +4,7 @@ import { I, Pill, Socials, MonthGrid, TimeEntry, fmtTime, WarmthPicker } from '.
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-export default function Callcenter({ settings, toast, refreshCounts }) {
+export default function Callcenter({ settings, toast, refreshCounts, summary }) {
   const [niche, setNiche] = useState(settings?.last_niche || 'pool builders');
   const [where, setWhere] = useState(settings?.last_where || 'Phoenix AZ, Mesa AZ, Scottsdale AZ, Tucson AZ');
   const [phase, setPhase] = useState('idle'); // idle | scanning | done
@@ -15,6 +15,7 @@ export default function Callcenter({ settings, toast, refreshCounts }) {
   const [open, setOpen] = useState({});
   const [popup, setPopup] = useState(null); // {id, kind, step, date, hour, ampm, notes}
   const [enriching, setEnriching] = useState(null);
+  const [scanErr, setScanErr] = useState(null);
   const timers = useRef([]);
 
   const load = async () => {
@@ -27,7 +28,7 @@ export default function Callcenter({ settings, toast, refreshCounts }) {
 
   const startScan = async () => {
     if (!settings?.has_outscraper) { toast('Add your Outscraper key in settings first'); return; }
-    setPhase('scanning'); setScan(null);
+    setPhase('scanning'); setScan(null); setScanErr(null);
     try {
       const s = await api.startScan(niche, where);
       setScan(s);
@@ -36,6 +37,7 @@ export default function Callcenter({ settings, toast, refreshCounts }) {
   };
 
   const poll = (id) => {
+    let fails = 0;
     const tick = async () => {
       try {
         const s = await api.scanStatus(id);
@@ -50,7 +52,7 @@ export default function Callcenter({ settings, toast, refreshCounts }) {
         setVisible(rows.length - fresh);
         for (let i = 1; i <= fresh; i++) timers.current.push(setTimeout(() => setVisible(rows.length - fresh + i), 120 * i));
         timers.current.push(setTimeout(() => enrichAll(rows), 120 * fresh + 300));
-      } catch (e) { timers.current.push(setTimeout(tick, 8000)); }
+      } catch (e) { fails++; if (fails >= 3) { setScanErr(e.message); setPhase(leads.length ? 'done' : 'idle'); return; } timers.current.push(setTimeout(tick, 8000)); }
     };
     tick();
   };
@@ -106,7 +108,14 @@ export default function Callcenter({ settings, toast, refreshCounts }) {
           {scan?.towns ? `${scan.towns} towns, ` : ''}waiting on Google Maps{scan?.rows_returned ? `, ${scan.rows_returned} rows so far` : ''}. Usually one to three minutes.
         </span>
       )}
-      {phase === 'done' && scan?.debug && <span className="small muted">{scan.rows_returned} rows from Google Maps, {scan.debug.with_site} had websites, {scan.debug.no_phone} had no phone, {scan.no_site} kept, {scan.new_leads} new</span>}
+      {scanErr && <span className="small" style={{ color: 'var(--red)' }}>scan stopped: {scanErr}</span>}
+      {phase === 'done' && scan?.debug && (
+        <span className="small muted">
+          {scan.rows_returned} rows from Google Maps, {scan.debug.with_site} had websites, {scan.debug.no_phone} had no phone, {scan.no_site} without a website, {scan.new_leads} new
+          {Object.keys(scan.debug.known || {}).length > 0 && <>, {Object.entries(scan.debug.known).map(([k, v]) => `${v} already in ${k === 'new' ? 'today' : k === 'callback' ? 'call later' : k}`).join(', ')}</>}
+        </span>
+      )}
+      {summary?.by_status && <span className="small muted">in your lists now: today {summary.by_status.new || 0}, call later {summary.by_status.callback || 0}, confirmed {summary.by_status.confirmed || 0}, trash {summary.by_status.trash || 0}{summary.by_status.trash ? <> · <button className="btn-ghost" style={{ height: 28, padding: '0 10px' }} onClick={async () => { if (!window.confirm('Empty the trash? Trashed businesses can come back on the next scan.')) return; await api.clear('trash'); refreshCounts(); }}>empty the trash</button></> : null}</span>}
       {enriching && <span className="small muted">checking Facebook, Instagram and photos, four leads at a time; you can keep calling</span>}
       {phase === 'done' && !enriching && (
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>

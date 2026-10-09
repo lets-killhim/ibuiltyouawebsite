@@ -65,16 +65,17 @@ async function ingest(d, scan, data) {
   }
   const no_site = fresh.length;
   // skip anything we already have, by place id or by phone
-  let new_leads = 0;
+  let new_leads = 0; const known = {};
   for (let i = 0; i < fresh.length; i += 150) {
     const chunk = fresh.slice(i, i + 150);
     const ids = chunk.map((l) => l.place_id); const phones = chunk.map((l) => l.phone_digits).filter(Boolean);
-    const existing = await d.select('leads', `select=place_id,phone_digits&or=(place_id.in.(${ids.map(q).join(',')}),phone_digits.in.(${phones.map(q).join(',')}))`);
+    const existing = await d.select('leads', `select=place_id,phone_digits,status&or=(place_id.in.(${ids.map(q).join(',')}),phone_digits.in.(${phones.length ? phones.map(q).join(',') : '"-"'}))`);
+    for (const e of existing) known[e.status] = (known[e.status] || 0) + 1;
     const ep = new Set(existing.map((e) => e.place_id)); const eph = new Set(existing.map((e) => e.phone_digits));
     const toInsert = chunk.filter((l) => !ep.has(l.place_id) && !(l.phone_digits && eph.has(l.phone_digits)));
     if (toInsert.length) { await d.insert('leads', toInsert); new_leads += toInsert.length; }
   }
   const sample = places[0] ? { keys: Object.keys(places[0]), site: places[0].site ?? null, website: places[0].website ?? null, name: places[0].name } : null;
-  return { rows_returned, no_site, new_leads, debug: { with_site, no_phone, closed, sample } };
+  return { rows_returned, no_site, new_leads, debug: { with_site, no_phone, closed, known, sample } };
 }
 const q = (s) => `"${String(s).replace(/"/g, '')}"`;

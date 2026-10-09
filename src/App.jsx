@@ -38,7 +38,7 @@ export default function App() {
     <div className="app">
       <Strip tab={page} go={go} counts={counts} />
       {page === 'home' && <Home summary={summary} go={go} />}
-      {page === 'callcenter' && <Callcenter settings={settings} toast={toast} refreshCounts={refreshCounts} />}
+      {page === 'callcenter' && <Callcenter settings={settings} toast={toast} refreshCounts={refreshCounts} summary={summary} />}
       {page === 'leads' && <Leads settings={settings} openId={route.arg} toast={toast} refreshCounts={refreshCounts} />}
       {page === 'calendar' && <Calendar go={go} toast={toast} />}
       {page === 'money' && <Money summary={summary} />}
