@@ -93,7 +93,7 @@ export default function Settings({ settings, onSaved, toast }) {
           <select className="input" value={cur.name} onChange={(e) => { setPreset(e.target.value); setNaming(false); setDirty(false); }}>
             {presets.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
           </select>
-          <label className="field" style={{ fontSize: 13, flex: '1 1 auto' }}>design prompt<textarea className="input" rows={11} value={cur.prompt} onChange={(e) => setPrompt(e.target.value)} /></label>
+          <label className="field" style={{ fontSize: 13, flex: '1 1 auto' }}>design prompt<textarea className="input" rows={24} style={{ fontSize: 12, lineHeight: 1.45 }} value={cur.prompt} onChange={(e) => setPrompt(e.target.value)} /></label>
           {!naming ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <button className={'btn-sage' + (dirty ? '' : ' off')} onClick={() => setNaming(true)}>Save as new preset</button>
@@ -105,7 +105,7 @@ export default function Settings({ settings, onSaved, toast }) {
               <button className="btn-ghost" onClick={() => setNaming(false)}>cancel</button>
             </div>
           )}
-          <span className="small muted">the preset is a finished layout; the prompt only decides tone and which scraped fields go where</span>
+          <span className="small muted">this whole text is the system prompt for a build; the app fills the CLIENT BRIEF block at the bottom from the lead</span>
         </div>
 
         <div className="col">

@@ -112,7 +112,7 @@ export function SitePanel({ lead, settings, onLead, toast }) {
         <Pill small onClick={build} disabled={building}>{site.token ? 'Rebuild' : 'Build site'}</Pill>
       </div>
       {stale && !busy && <span className="small" style={{ color: 'var(--red)' }}>the last build was cut off before it finished; build again</span>}
-      {building && <div style={{ aspectRatio: '16 / 10', borderRadius: 8, background: 'var(--box)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}><div className="loader"><span /><span /><span /></div><span className="small muted" style={{ textAlign: 'center', padding: '0 16px' }}>writing the site, a minute or three. Keep the app open; you can close this row and keep calling</span></div>}
+      {building && <div style={{ aspectRatio: '16 / 10', borderRadius: 8, background: 'var(--box)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}><div className="loader"><span /><span /><span /></div><span className="small muted" style={{ textAlign: 'center', padding: '0 16px' }}>writing the site, usually five to eight minutes with this prompt. Keep the app open; you can close this row and keep calling</span></div>}
       {!building && site.url && (<>
         <div style={{ position: 'relative', aspectRatio: '16 / 10', borderRadius: 8, overflow: 'hidden', background: '#fff', border: '1px solid var(--line)' }}>
           <iframe title="site preview" src={site.url} style={{ width: 1280, height: 800, border: 0, transform: 'scale(0.265)', transformOrigin: 'top left', pointerEvents: 'none' }} />
@@ -126,8 +126,9 @@ export function SitePanel({ lead, settings, onLead, toast }) {
           <span>send the link:</span>
           {smsHref ? <a className="ring lg" href={smsHref} aria-label="Text the link">{I.msg}</a> : <span className="ring lg off" aria-label="No phone">{I.msg}</span>}
           {mailHref ? <a className="ring lg" href={mailHref} aria-label="Email the link">{I.mail}</a> : <span className="ring lg off" title="no email found for this business">{I.mail}</span>}
-          <span style={{ letterSpacing: 0, textTransform: 'none', fontWeight: 400 }}>v{site.version}{site.preset ? `, ${site.preset}` : ''}{site.model ? `, ${modelName(site.model)}` : ''}</span>
+          <span style={{ letterSpacing: 0, textTransform: 'none', fontWeight: 400 }}>v{site.version}{site.preset ? `, ${site.preset}` : ''}{site.direction ? `, direction ${site.direction}` : ''}{site.model ? `, ${modelName(site.model)}` : ''}</span>
         </div>
+        {site.notes && <details style={{ fontSize: 12, color: 'var(--muted)' }}><summary style={{ cursor: 'pointer' }}>what the builder decided and left blank</summary><pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit', margin: '8px 0 0', lineHeight: 1.5, maxHeight: 260, overflow: 'auto' }}>{site.notes}</pre></details>}
       </>)}
       {!building && site.status === 'error' && <span className="small" style={{ color: 'var(--red)' }}>{site.error}</span>}
       {!building && !site.status && <span className="small muted">builds a one-page site from the photos and details above</span>}
