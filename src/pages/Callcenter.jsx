@@ -18,6 +18,7 @@ export default function Callcenter({ settings, toast, refreshCounts, summary }) 
   const [scanErr, setScanErr] = useState(null);
   const [mode, setMode] = useState('quick');
   const [box, setBox] = useState(null); // { photos, index }
+  const [find, setFind] = useState('');
   const timers = useRef([]);
 
   const load = async () => {
@@ -82,7 +83,8 @@ export default function Callcenter({ settings, toast, refreshCounts, summary }) 
   };
   const trash = (id) => { setLeads((ls) => ls.filter((x) => x.id !== id)); api.patchLead(id, { status: 'trash' }).then(refreshCounts).catch(() => {}); };
 
-  const shown = leads.slice(0, visible).filter((l) => l.status === filter);
+  const needle = find.trim().toLowerCase();
+  const shown = leads.slice(0, visible).filter((l) => l.status === filter && (!needle || `${l.name} ${l.city || ''} ${l.phone || ''}`.toLowerCase().includes(needle)));
   const headline = phase === 'idle' ? ['Who should', 'we find?'] : phase === 'scanning' ? ['Finding', niche + '.'] : [String(shown.length), filter === 'new' ? 'to call.' : 'to call back.'];
 
   return (
@@ -106,7 +108,8 @@ export default function Callcenter({ settings, toast, refreshCounts, summary }) 
 
       <div className="head">
         <h1>{headline[0]} <em>{headline[1]}</em></h1>
-        <div className="filters">
+        <div className="filters" style={{ alignItems: 'center' }}>
+          <input className="input" value={find} onChange={(e) => setFind(e.target.value)} placeholder="find a name" aria-label="Find a lead" style={{ width: 180, minHeight: 36, padding: '6px 12px', borderRadius: 999, fontWeight: 400, letterSpacing: 0, textTransform: 'none' }} />
           <button className={filter === 'new' ? 'on' : ''} onClick={() => setFilter('new')}>( today ) {leads.filter((l) => l.status === 'new').length || ''}</button>
           <button className={filter === 'callback' ? 'on' : ''} onClick={() => setFilter('callback')}>( call later ) {leads.filter((l) => l.status === 'callback').length || ''}</button>
         </div>
