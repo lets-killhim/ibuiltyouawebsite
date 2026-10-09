@@ -23,7 +23,7 @@ export const api = {
   summary: () => call('GET', '/api/summary'),
   settings: () => call('GET', '/api/settings'),
   saveSettings: (patch) => call('PUT', '/api/settings', patch),
-  startScan: (niche, where) => call('POST', '/api/scan', { niche, where }),
+  startScan: (niche, where, mode) => call('POST', '/api/scan', { niche, where, mode }),
   scanStatus: (id) => call('GET', `/api/scan?id=${encodeURIComponent(id)}`),
   leads: (status) => call('GET', `/api/leads${status ? `?status=${encodeURIComponent(status)}` : ''}`),
   patchLead: (id, patch) => call('PATCH', `/api/leads?id=${encodeURIComponent(id)}`, patch),

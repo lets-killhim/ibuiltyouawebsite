@@ -55,6 +55,28 @@ export function Socials({ lead }) {
   );
 }
 
+export function Lightbox({ photos, index, onClose, onIndex }) {
+  useEffect(() => {
+    const key = (e) => { if (e.key === 'Escape') onClose(); if (e.key === 'ArrowRight') onIndex((index + 1) % photos.length); if (e.key === 'ArrowLeft') onIndex((index - 1 + photos.length) % photos.length); };
+    window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key);
+  }, [index, photos.length]);
+  if (!photos.length) return null;
+  const p = photos[index] || photos[0];
+  const Arrow = ({ dir }) => (
+    <button aria-label={dir > 0 ? 'Next photo' : 'Previous photo'} onClick={(e) => { e.stopPropagation(); onIndex((index + dir + photos.length) % photos.length); }}
+      style={{ position: 'absolute', top: '50%', [dir > 0 ? 'right' : 'left']: 16, transform: 'translateY(-50%)', width: 44, height: 44, borderRadius: 999, border: '1px solid rgba(220,241,215,0.35)', background: 'rgba(15,59,46,0.6)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DCF1D7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={dir > 0 ? 'M9 6l6 6-6 6' : 'M15 6l-6 6 6 6'} /></svg>
+    </button>
+  );
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 70, background: 'rgba(8,28,20,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 72, cursor: 'zoom-out' }}>
+      <img src={p.src} alt="" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 8, cursor: 'default', boxShadow: '0 24px 60px rgba(0,0,0,0.5)' }} />
+      {photos.length > 1 && <><Arrow dir={-1} /><Arrow dir={1} /></>}
+      <span className="small" style={{ position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)', color: 'var(--muted)' }}>{index + 1} of {photos.length}{p.source ? `, ${p.source === 'yours' ? 'yours' : 'from Google'}` : ''} · click outside to close</span>
+    </div>
+  );
+}
+
 export function Loader({ text }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: 24 }}>

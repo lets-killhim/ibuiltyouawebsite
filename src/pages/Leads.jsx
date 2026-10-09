@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api, WARM, fmtMeeting } from '../api.js';
-import { I, Socials } from '../components/ui.jsx';
+import { I, Socials, Lightbox } from '../components/ui.jsx';
 
 const STEPS = [
   ['Domain purchased', 'https://dash.cloudflare.com/?to=/:account/domains/register'],
@@ -12,6 +12,7 @@ const STEPS = [
 export default function Leads({ settings, openId, toast, refreshCounts }) {
   const [leads, setLeads] = useState([]);
   const [open, setOpen] = useState({});
+  const [box, setBox] = useState(null);
   useEffect(() => {
     api.leads('confirmed').then((rows) => {
       setLeads(rows);
@@ -30,14 +31,15 @@ export default function Leads({ settings, openId, toast, refreshCounts }) {
     <div className="page">
       <div className="head"><h1>{sorted.length} <em>clients.</em></h1></div>
       <div className="rows">
-        {sorted.map((l) => <ClientRow key={l.id} lead={l} open={!!open[l.id]} toggle={() => setOpen((o) => ({ ...o, [l.id]: !o[l.id] }))} patch={patch} settings={settings} toast={toast} refreshCounts={refreshCounts} />)}
+        {sorted.map((l) => <ClientRow key={l.id} lead={l} open={!!open[l.id]} toggle={() => setOpen((o) => ({ ...o, [l.id]: !o[l.id] }))} patch={patch} settings={settings} toast={toast} refreshCounts={refreshCounts} setBox={setBox} />)}
         {sorted.length > 0 ? <div className="end" /> : <span className="muted" style={{ padding: '24px 0' }}>Nothing confirmed yet. Hit the green check on a lead in the callcenter and it lands here.</span>}
       </div>
+      {box && <Lightbox photos={box.photos} index={box.index} onClose={() => setBox(null)} onIndex={(i) => setBox({ ...box, index: i })} />}
     </div>
   );
 }
 
-function ClientRow({ lead: l, open, toggle, patch, settings, toast, refreshCounts }) {
+function ClientRow({ lead: l, open, toggle, patch, settings, toast, refreshCounts, setBox }) {
   const [notes, setNotes] = useState(l.notes || '');
   const [editOwner, setEditOwner] = useState(false);
   const [owner, setOwner] = useState(l.owner || '');
@@ -129,7 +131,7 @@ function ClientRow({ lead: l, open, toggle, patch, settings, toast, refreshCount
               <span className="small muted">drag photos from your computer anywhere on this row; they join the gallery and the site prompts</span>
             </div>
             <div className="photos" style={{ gridTemplateColumns: 'repeat(10, minmax(0, 1fr))' }}>
-              {(l.photos || []).map((p, i) => <img key={i} src={p.src} alt="" loading="lazy" title={p.source} />)}
+              {(l.photos || []).map((p, i) => <img key={i} src={p.src} alt="" loading="lazy" title={p.source} style={{ cursor: 'zoom-in' }} onClick={() => setBox({ photos: l.photos, index: i })} />)}
               <label className="ph add">{I.plus}add<input type="file" accept="image/*" multiple onChange={(e) => addFiles(e.target.files)} style={{ display: 'none' }} /></label>
             </div>
           </div>
