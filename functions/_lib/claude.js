@@ -9,7 +9,7 @@ const errMessage = (status, raw) => { try { const j = JSON.parse(raw); return `C
 
 // Opens a streamed Messages request and returns the raw upstream Response once it is accepted. The caller
 // pipes the body on; nothing here reads it.
-export async function startClaudeStream(key, { model, system, user, max_tokens = 20000 }) {
+export async function startClaudeStream(key, { model, system, user, max_tokens = 32000 }) {
   const call = (maxTokens) => fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
@@ -20,7 +20,7 @@ export async function startClaudeStream(key, { model, system, user, max_tokens =
     res = await call(maxTokens);
     if (res.ok) return res;
     const raw = await res.text().catch(() => '');
-    if (res.status === 400 && /max_tokens/i.test(raw) && maxTokens > 16000) { maxTokens = 16000; continue; }
+    if (res.status === 400 && /max_tokens/i.test(raw) && maxTokens > 20000) { maxTokens = 20000; continue; }
     const busy = res.status === 429 || res.status === 529 || res.status === 503;
     if (!busy || waited > 6 * 60 * 1000) throw new Error(errMessage(res.status, raw));
     const hinted = Number(res.headers.get('retry-after')) * 1000;
