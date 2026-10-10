@@ -122,6 +122,7 @@ export function SitePanel({ lead, settings, onLead, toast }) {
   const [preset, setPreset] = useState(site.preset || (presets[0] && presets[0].name) || '');
   const [busy, setBusy] = useState(false);
   const [queued, setQueued] = useState(false);
+  const [chars, setChars] = useState(0);
   const [err, setErr] = useState(null);
   const [full, setFull] = useState(false);
   const startedRef = useRef(null);
@@ -137,8 +138,8 @@ export function SitePanel({ lead, settings, onLead, toast }) {
     if (!settings?.anthropic_key_last4) { toast('Add your Claude API key in settings first'); return; }
     startedRef.current = new Date().toISOString();
     QUEUE.inflight.add(lead.id);
-    setBusy(true); setErr(null); setQueued(QUEUE.running >= QUEUE.limit);
-    try { onLead(await enqueue(() => { setQueued(false); return api.build(lead.id, preset); })); } catch (e) { setErr(e.message); toast('Build failed, see the note under the button'); }
+    setBusy(true); setErr(null); setChars(0); setQueued(QUEUE.running >= QUEUE.limit);
+    try { onLead(await enqueue(() => { setQueued(false); return api.build(lead.id, preset, setChars); })); } catch (e) { setErr(e.message); toast('Build failed, see the note under the button'); }
     QUEUE.inflight.delete(lead.id);
     setBusy(false); setQueued(false);
   };
@@ -160,7 +161,7 @@ export function SitePanel({ lead, settings, onLead, toast }) {
       {building && (
         <div style={{ aspectRatio: '16 / 10', borderRadius: 8, background: 'var(--box)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 16, textAlign: 'center' }}>
           <House />
-          <span className="small" style={{ color: 'var(--bright)', fontVariantNumeric: 'tabular-nums' }}>{queued ? 'waiting its turn' : `building · ${elapsed}`}</span>
+          <span className="small" style={{ color: 'var(--bright)', fontVariantNumeric: 'tabular-nums' }}>{queued ? 'waiting its turn' : `building · ${elapsed}${busy && chars ? ` · ${Math.round(chars / 1000)}k written` : ''}`}</span>
           <span className="small muted" style={{ maxWidth: 300 }}>
             {queued ? 'four sites build at a time; this one starts when a slot opens'
               : orphan ? <>this tab isn't holding the build anymore (refreshed, or started elsewhere); if it never finishes, <button className="linkish" onClick={build}>start it again</button></>

@@ -1,6 +1,6 @@
 import { db, json, bad, getSettings, logCost } from '../_lib/db.js';
 import { present } from '../_lib/leads.js';
-import { askClaude, extractHtml, notesAround } from '../_lib/claude.js';
+import { startClaudeStream, extractHtml, notesAround } from '../_lib/claude.js';
 import { presetsOf } from './settings.js';
 
 // The preset's prompt IS the system prompt. If it carries a CLIENT BRIEF block (a fenced block after a
@@ -49,7 +49,7 @@ export function systemFor(prompt, l, s) {
   return prompt.trimEnd() + '\n\n## CLIENT BRIEF\n\n' + filled + '\n';
 }
 
-const USER = 'Build the site for the CLIENT BRIEF above. Output in this order: the short design spec (name the direction letter), then the complete single-file index.html inside one ```html code block, then the short list titled "Missing from the brief". Nothing else.';
+export const USER = 'Build the site for the CLIENT BRIEF above. Output in this order: the short design spec (name the direction letter), then the complete single-file index.html inside one ```html code block, then the short list titled "Missing from the brief". Nothing else.';
 
 
 // Dollars per million tokens, input then output, from the Claude pricing page. Matched by family so a
@@ -69,6 +69,9 @@ export function buildCost(model, input, output) {
   return (input * i + output * o) / 1e6;
 }
 
+// Step 1 of a build: open the Claude stream and pass it straight through to the browser. The browser
+// assembles the page (parsing tens of thousands of stream events costs more CPU than a Pages Function gets)
+// and sends the finished text to the PUT below, which stores it.
 export async function onRequestPost({ request, env }) {
   const d = db(env);
   let leadId = null;
@@ -83,24 +86,45 @@ export async function onRequestPost({ request, env }) {
     const presetDef = presets.find((p) => p.name === preset) || presets[0];
     const model = s.claude_model || 'claude-fable-5-1';
     await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'building', preset: presetDef.name, error: null, started_at: new Date().toISOString() } });
+    const upstream = await startClaudeStream(s.anthropic_key, { model, system: systemFor(presetDef.prompt, l, s), user: USER });
+    return new Response(upstream.body, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', 'X-Build-Preset': presetDef.name } });
+  } catch (e) {
+    await fail(d, leadId, e.message);
+    return bad(e.message, 500);
+  }
+}
 
-    const r = await askClaude(s.anthropic_key, { model, system: systemFor(presetDef.prompt, l, s), user: USER });
-    if (r.stop_reason === 'max_tokens') throw new Error(`the page ran past the output limit (${r.output_tokens} tokens) and would be cut off; build again`);
-    const html = extractHtml(r.text);
+// Step 2: the browser hands back what Claude wrote; store it, or record why it failed.
+export async function onRequestPut({ request, env }) {
+  const d = db(env);
+  let leadId = null;
+  try {
+    const { id, preset, text, model, input_tokens = 0, output_tokens = 0, stop_reason, error } = await request.json();
+    leadId = id;
+    const [l] = await d.select('leads', `id=eq.${id}`);
+    if (!l) return bad('not found', 404);
+    if (error) { await fail(d, id, error); const [u] = await d.select('leads', `id=eq.${id}`); return json(present(u)); }
+    if (stop_reason === 'max_tokens') throw new Error(`the page ran past the output limit (${output_tokens} tokens) and would be cut off; build again`);
+    const html = extractHtml(text || '');
     if (!/<html/i.test(html) || html.length < 500) throw new Error('Claude did not return a page');
-    const notes = notesAround(r.text, html);
+    const notes = notesAround(text, html);
     const direction = (/[Dd]irection[^\n]{0,40}?\b([A-F])\b/.exec(notes) || [])[1] || null;
 
     const prev = await d.select('sites', `lead_id=eq.${id}&select=version,token&order=version.desc&limit=1`);
     const version = prev.length ? (prev[0].version || 0) + 1 : 1;
     const token = prev.length && prev[0].token ? prev[0].token : Math.random().toString(36).slice(2, 12);
-    await d.insert('sites', [{ lead_id: id, token, preset: presetDef.name, version, html, model: r.model, input_tokens: r.input_tokens, output_tokens: r.output_tokens }]);
-    await logCost(env, `claude build (${r.model || model})`, r.input_tokens + r.output_tokens, buildCost(r.model || model, r.input_tokens, r.output_tokens));
+    await d.insert('sites', [{ lead_id: id, token, preset, version, html, model, input_tokens, output_tokens }]);
+    await logCost(env, `claude build (${model})`, input_tokens + output_tokens, buildCost(model, input_tokens, output_tokens));
     const url = `${new URL(request.url).origin}/s/${token}`;
-    const [u] = await d.update('leads', `id=eq.${id}`, { site: { status: 'ready', preset: presetDef.name, token, url, version, model: r.model || model, notes, direction, built_at: new Date().toISOString(), error: null } });
+    const [u] = await d.update('leads', `id=eq.${id}`, { site: { status: 'ready', preset, token, url, version, model, direction, built_at: new Date().toISOString(), error: null } });
     return json(present(u));
   } catch (e) {
-    if (leadId) { try { const [l] = await d.select('leads', `id=eq.${leadId}`); await d.update('leads', `id=eq.${leadId}`, { site: { ...(l?.site || {}), status: l?.site?.token ? 'ready' : 'error', error: e.message } }); } catch { /* ignore */ } }
+    await fail(d, leadId, e.message);
     return bad(e.message, 500);
   }
+}
+
+async function fail(d, id, message) {
+  if (!id) return;
+  try { const [l] = await d.select('leads', `id=eq.${id}`); await d.update('leads', `id=eq.${id}`, { site: { ...(l?.site || {}), status: l?.site?.token ? 'ready' : 'error', error: message } }); } catch { /* ignore */ }
 }

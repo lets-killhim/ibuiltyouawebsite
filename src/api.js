@@ -29,7 +29,41 @@ export const api = {
   leads: (status) => call('GET', `/api/leads${status ? `?status=${encodeURIComponent(status)}` : ''}`),
   patchLead: (id, patch) => call('PATCH', `/api/leads?id=${encodeURIComponent(id)}`, patch),
   enrich: (id) => call('POST', '/api/enrich', { id }),
-  build: (id, preset) => call('POST', '/api/build', { id, preset }),
+  // A build streams Claude's reply through to this tab; the tab assembles it and hands it back to be saved.
+  // onProgress(chars) fires as text arrives. Resolves with the updated lead.
+  build: async (id, preset, onProgress) => {
+    const res = await fetch('/api/build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, preset }), credentials: 'same-origin' });
+    if (!res.ok || !(res.headers.get('Content-Type') || '').includes('event-stream')) {
+      const text = await res.text(); let data = null;
+      try { data = JSON.parse(text); } catch { data = { error: `the server cut the request off (${res.status}); try again` }; }
+      throw new ApiError(res.status, data.error || res.statusText);
+    }
+    const reader = res.body.getReader(); const dec = new TextDecoder();
+    let buf = '', text = '', model = null, input_tokens = 0, output_tokens = 0, stop_reason = null;
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let i;
+        while ((i = buf.indexOf('\n\n')) >= 0) {
+          const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+          const line = chunk.split('\n').find((l) => l.startsWith('data:'));
+          if (!line) continue;
+          let ev; try { ev = JSON.parse(line.slice(5).trim()); } catch { continue; }
+          if (ev.type === 'message_start') { model = ev.message?.model || null; input_tokens = ev.message?.usage?.input_tokens || 0; }
+          else if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') { text += ev.delta.text; if (onProgress) onProgress(text.length); }
+          else if (ev.type === 'message_delta') { output_tokens = ev.usage?.output_tokens || output_tokens; stop_reason = ev.delta?.stop_reason || stop_reason; }
+          else if (ev.type === 'error') throw new Error((ev.error && ev.error.message) || 'Claude stream error');
+        }
+      }
+      if (!stop_reason) throw new Error('the connection dropped before the page was finished; build again');
+    } catch (e) {
+      await call('PUT', '/api/build', { id, error: e.message }).catch(() => {});
+      throw e;
+    }
+    return call('PUT', '/api/build', { id, preset, text, model, input_tokens, output_tokens, stop_reason });
+  },
   diag: (niche, town, check) => call('POST', '/api/diag', { niche, town, check }),
   clear: (status) => call('POST', '/api/clear', { status }),
   upload: async (leadId, file) => {
