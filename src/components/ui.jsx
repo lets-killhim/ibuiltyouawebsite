@@ -81,7 +81,7 @@ export function Lightbox({ photos, index, onClose, onIndex }) {
 // The site builder block: preset, build, loader, preview, link, send buttons. Used in the callcenter and leads dropdowns.
 // Builds run four at a time no matter how many rows you click; the rest wait their turn. Four 20k-token
 // builds fit inside Fable's per-minute output allowance on a new account, which is what a fifth would trip.
-const QUEUE = { running: 0, waiting: [], limit: 4, listeners: new Set() };
+const QUEUE = { running: 0, waiting: [], limit: 4, listeners: new Set(), inflight: new Set() };
 // A build lives in this tab's open request: leaving the page cancels it, so warn first.
 if (typeof window !== 'undefined') window.addEventListener('beforeunload', (e) => { if (QUEUE.running || QUEUE.waiting.length) { e.preventDefault(); e.returnValue = ''; } });
 
@@ -130,14 +130,16 @@ export function SitePanel({ lead, settings, onLead, toast }) {
   // and after twenty-five give the button back outright.
   const age = Date.now() - new Date(site.started_at || 0).getTime();
   const stale = site.status === 'building' && age > 25 * 60 * 1000;
-  const orphan = site.status === 'building' && !busy && age > 3 * 60 * 1000;
+  const orphan = site.status === 'building' && !busy && !QUEUE.inflight.has(lead.id) && age > 3 * 60 * 1000;
   const building = busy || (site.status === 'building' && !stale);
   const elapsed = useElapsed(busy ? startedRef.current : site.started_at, building);
   const build = async () => {
     if (!settings?.anthropic_key_last4) { toast('Add your Claude API key in settings first'); return; }
     startedRef.current = new Date().toISOString();
+    QUEUE.inflight.add(lead.id);
     setBusy(true); setErr(null); setQueued(QUEUE.running >= QUEUE.limit);
     try { onLead(await enqueue(() => { setQueued(false); return api.build(lead.id, preset); })); } catch (e) { setErr(e.message); toast('Build failed, see the note under the button'); }
+    QUEUE.inflight.delete(lead.id);
     setBusy(false); setQueued(false);
   };
   const vars = { business: lead.name, owner: lead.owner || 'there', phone: lead.phone || '', link: site.url || '', me: settings?.me || '', my_phone: settings?.my_phone || '', plan: lead.plan || '' };
@@ -179,9 +181,7 @@ export function SitePanel({ lead, settings, onLead, toast }) {
           <span>send the link:</span>
           {smsHref ? <a className="ring lg" href={smsHref} aria-label="Text the link">{I.msg}</a> : <span className="ring lg off" aria-label="No phone">{I.msg}</span>}
           {mailHref ? <a className="ring lg" href={mailHref} aria-label="Email the link">{I.mail}</a> : <span className="ring lg off" title="no email found for this business">{I.mail}</span>}
-          <span style={{ letterSpacing: 0, textTransform: 'none', fontWeight: 400 }}>v{site.version}{site.preset ? `, ${site.preset}` : ''}{site.direction ? `, direction ${site.direction}` : ''}{site.model ? `, ${modelName(site.model)}` : ''}</span>
         </div>
-        {site.notes && <details style={{ fontSize: 12, color: 'var(--muted)' }}><summary style={{ cursor: 'pointer' }}>what the builder decided and left blank</summary><pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit', margin: '8px 0 0', lineHeight: 1.5, maxHeight: 260, overflow: 'auto' }}>{site.notes}</pre></details>}
       </>)}
       {!building && site.status === 'error' && <span className="small" style={{ color: 'var(--red)' }}>{site.error}</span>}
       {!building && !site.status && <span className="small muted">builds a one-page site from the photos and details above</span>}
