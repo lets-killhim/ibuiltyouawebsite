@@ -13,9 +13,15 @@ const KEYS = [
 
 // Rough cost of one build: ~2k tokens in, ~6k out, at each model's list price.
 const MODELS = [
-  ['claude-fable-5-1', 'Fable 5.1, best design, ~40¢ a build'],
-  ['claude-opus-5-5', 'Opus 5.5, ~15¢ a build'],
-  ['claude-sonnet-5-5', 'Sonnet 5.5, ~7¢ a build'],
+  ['claude-fable-5-1', 'Fable 5.1, best design, ~$1–1.50 a build'],
+  ['claude-opus-5-5', 'Opus 5.5, ~40–60¢ a build'],
+  ['claude-sonnet-5-5', 'Sonnet 5.5, ~20–30¢ a build'],
+];
+// How long the model thinks before writing. Thinking is billed like the page itself.
+const EFFORTS = [
+  ['low', 'low: barely thinks, cheapest and fastest'],
+  ['medium', 'medium: thinks some, the default'],
+  ['high', 'high: thinks a lot, roughly double the cost and time'],
 ];
 
 export default function Settings({ settings, onSaved, toast }) {
@@ -68,6 +74,11 @@ export default function Settings({ settings, onSaved, toast }) {
           <label className="field" style={{ fontSize: 13 }}>Claude model for site builds
             <select className="input" value={s.claude_model || 'claude-fable-5-1'} onChange={(e) => save({ claude_model: e.target.value })}>
               {MODELS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+            </select>
+          </label>
+          <label className="field" style={{ fontSize: 13 }}>how hard it thinks per build
+            <select className="input" value={s.claude_effort || 'medium'} onChange={(e) => save({ claude_effort: e.target.value })}>
+              {EFFORTS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </select>
           </label>
           <label className="field" style={{ fontSize: 13 }}>your name, as you sign messages<input className="input" value={s.me || ''} onChange={(e) => save({ me: e.target.value })} /></label>

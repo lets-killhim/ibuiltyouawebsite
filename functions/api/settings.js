@@ -9,6 +9,7 @@ const DEFAULTS = {
   presets: [{ name: 'remodel', prompt: REMODEL_PROMPT }],
   plans: [],
   claude_model: 'claude-fable-5-1',
+  claude_effort: 'medium',
   tpl_text: "Hey {owner}, it's {me} from the call just now. Here's the site I built for {business}: {link}. Take a look and I'll make any changes you want.",
   tpl_email_subject: 'Your new {business} website',
   tpl_email: "Hi {owner},\n\nGood talking with you. Here's the website I put together for {business}: {link}\n\nEverything on it came from your Google listing and photos, so tell me what to change. If you want it live on your own domain, the plan is {plan}, and you can pay here: {pay_link}\n\n{me}\n{my_phone}",

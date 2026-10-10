@@ -86,7 +86,7 @@ export async function onRequestPost({ request, env }) {
     const presetDef = presets.find((p) => p.name === preset) || presets[0];
     const model = s.claude_model || 'claude-fable-5-1';
     await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'building', preset: presetDef.name, error: null, started_at: new Date().toISOString() } });
-    const upstream = await startClaudeStream(s.anthropic_key, { model, system: systemFor(presetDef.prompt, l, s), user: USER });
+    const upstream = await startClaudeStream(s.anthropic_key, { model, effort: s.claude_effort || 'medium', system: systemFor(presetDef.prompt, l, s), user: USER });
     return new Response(upstream.body, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', 'X-Build-Preset': presetDef.name } });
   } catch (e) {
     await fail(d, leadId, e.message);

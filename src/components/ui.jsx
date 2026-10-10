@@ -79,9 +79,9 @@ export function Lightbox({ photos, index, onClose, onIndex }) {
 }
 
 // The site builder block: preset, build, loader, preview, link, send buttons. Used in the callcenter and leads dropdowns.
-// Builds run three at a time no matter how many rows you click; the rest wait their turn. Three 32k-token
-// builds fit inside Fable's per-minute output allowance on a new account, which is what a fourth would trip.
-const QUEUE = { running: 0, waiting: [], limit: 3, listeners: new Set(), inflight: new Set() };
+// Builds run two at a time no matter how many rows you click; the rest wait their turn. Two 40k-token
+// builds fit inside Fable's per-minute output allowance on a new account, which is what a third would trip.
+const QUEUE = { running: 0, waiting: [], limit: 2, listeners: new Set(), inflight: new Set() };
 // A build lives in this tab's open request: leaving the page cancels it, so warn first.
 if (typeof window !== 'undefined') window.addEventListener('beforeunload', (e) => { if (QUEUE.running || QUEUE.waiting.length) { e.preventDefault(); e.returnValue = ''; } });
 
@@ -163,7 +163,7 @@ export function SitePanel({ lead, settings, onLead, toast }) {
           <House />
           <span className="small" style={{ color: 'var(--bright)', fontVariantNumeric: 'tabular-nums' }}>{queued ? 'waiting its turn' : `building · ${elapsed}${busy && chars ? ` · ${Math.round(chars / 1000)}k written` : ''}`}</span>
           <span className="small muted" style={{ maxWidth: 300 }}>
-            {queued ? 'three sites build at a time; this one starts when a slot opens'
+            {queued ? 'two sites build at a time; this one starts when a slot opens'
               : orphan ? <>this tab isn't holding the build anymore (refreshed, or started elsewhere); if it never finishes, <button className="linkish" onClick={build}>start it again</button></>
               : 'usually four to six minutes. Keep this tab open; you can close the row and keep calling'}
           </span>

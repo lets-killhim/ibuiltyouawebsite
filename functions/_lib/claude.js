@@ -1,26 +1,30 @@
 // Claude API helpers. Streaming is required: Anthropic's edge times out a request that has not started
 // answering within about 100 seconds, and a page takes minutes to write.
 //
+// Fable thinks before it writes and cannot be told not to; the thinking counts toward max_tokens and is
+// billed as output. `effort` sets how deep it goes (medium keeps a build around 10-15k thinking tokens on
+// top of the page), and the cap leaves room for both.
+//
 // Anthropic counts max_tokens against the per-minute output limit the moment a request starts, so the
-// cap stays modest (several builds can run side by side) and a 429/529 is retried with backoff for a few
+// cap stays modest (a couple of builds run side by side) and a 429/529 is retried with backoff for a few
 // minutes instead of failing the build.
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const errMessage = (status, raw) => { try { const j = JSON.parse(raw); return `Claude ${status}: ${j.error?.message || raw.slice(0, 200)}`; } catch { return `Claude ${status}: ${raw.slice(0, 200)}`; } };
 
 // Opens a streamed Messages request and returns the raw upstream Response once it is accepted. The caller
 // pipes the body on; nothing here reads it.
-export async function startClaudeStream(key, { model, system, user, max_tokens = 32000 }) {
+export async function startClaudeStream(key, { model, system, user, effort = 'medium', max_tokens = 40000 }) {
   const call = (maxTokens) => fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }], stream: true }),
+    body: JSON.stringify({ model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }], stream: true, output_config: { effort } }),
   });
   let res = null, waited = 0, maxTokens = max_tokens;
   for (let attempt = 0; attempt < 12; attempt++) {
     res = await call(maxTokens);
     if (res.ok) return res;
     const raw = await res.text().catch(() => '');
-    if (res.status === 400 && /max_tokens/i.test(raw) && maxTokens > 20000) { maxTokens = 20000; continue; }
+    if (res.status === 400 && /max_tokens/i.test(raw) && maxTokens > 32000) { maxTokens = 32000; continue; }
     const busy = res.status === 429 || res.status === 529 || res.status === 503;
     if (!busy || waited > 6 * 60 * 1000) throw new Error(errMessage(res.status, raw));
     const hinted = Number(res.headers.get('retry-after')) * 1000;
