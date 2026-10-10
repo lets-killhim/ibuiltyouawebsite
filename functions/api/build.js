@@ -49,7 +49,7 @@ export function systemFor(prompt, l, s) {
   return prompt.trimEnd() + '\n\n## CLIENT BRIEF\n\n' + filled + '\n';
 }
 
-export const USER = 'Build the site for the CLIENT BRIEF above. Output in this order: the short design spec (name the direction letter), then the complete single-file index.html inside one ```html code block, then the short list titled "Missing from the brief". Nothing else.';
+export const USER = 'Build the site for the CLIENT BRIEF above. Output in this order: the short design spec (name the direction letter), then the complete single-file index.html inside one ```html code block, then the short list titled "Missing from the brief". Nothing else. Write the code exactly once: do the self-critique in your head before the code block and never print a second or revised copy of the page.';
 
 
 // Dollars per million tokens, input then output, from the Claude pricing page. Matched by family so a
@@ -104,9 +104,15 @@ export async function onRequestPut({ request, env }) {
     const [l] = await d.select('leads', `id=eq.${id}`);
     if (!l) return bad('not found', 404);
     if (error) { await fail(d, id, error); const [u] = await d.select('leads', `id=eq.${id}`); return json(present(u)); }
-    if (stop_reason === 'max_tokens') throw new Error(`the page ran past the output limit (${output_tokens} tokens) and would be cut off; build again`);
     const html = extractHtml(text || '');
-    if (!/<html/i.test(html) || html.length < 500) throw new Error('Claude did not return a page');
+    const complete = /<html/i.test(html) && html.length > 500 && /<\/html>$/i.test(html);
+    if (stop_reason === 'max_tokens' && !complete) {
+      // say what was written so a runaway output can be diagnosed from the error itself
+      const t = text || '';
+      const starts = (t.match(/<!doctype html|<html[\s>]/gi) || []).length, fences = (t.match(/```/g) || []).length;
+      throw new Error(`ran past the output limit at ${output_tokens} tokens without finishing: ${Math.round(t.length / 1000)}k chars, ${starts} page start(s), ${fences} fence marks; ends with "…${t.slice(-240).replace(/\s+/g, ' ')}"`);
+    }
+    if (!complete) throw new Error('Claude did not return a complete page');
     const notes = notesAround(text, html);
     const direction = (/[Dd]irection[^\n]{0,40}?\b([A-F])\b/.exec(notes) || [])[1] || null;
 
