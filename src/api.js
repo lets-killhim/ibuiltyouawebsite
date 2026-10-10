@@ -12,7 +12,8 @@ async function call(method, path, body) {
   });
   const text = await res.text();
   let data = null;
-  try { data = text ? JSON.parse(text) : null; } catch { data = { error: text }; }
+  // a non-JSON body is an edge error page (worker killed, gateway timeout): say that instead of showing it
+  try { data = text ? JSON.parse(text) : null; } catch { data = { error: `the server cut the request off (${res.status}); try again` }; }
   if (!res.ok) throw new ApiError(res.status, (data && data.error) || res.statusText);
   return data;
 }

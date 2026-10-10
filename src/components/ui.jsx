@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 
 export const TABS = [
@@ -79,6 +79,40 @@ export function Lightbox({ photos, index, onClose, onIndex }) {
 }
 
 // The site builder block: preset, build, loader, preview, link, send buttons. Used in the callcenter and leads dropdowns.
+// Builds run four at a time no matter how many rows you click; the rest wait their turn. Four 20k-token
+// builds fit inside Fable's per-minute output allowance on a new account, which is what a fifth would trip.
+const QUEUE = { running: 0, waiting: [], limit: 4, listeners: new Set() };
+// A build lives in this tab's open request: leaving the page cancels it, so warn first.
+if (typeof window !== 'undefined') window.addEventListener('beforeunload', (e) => { if (QUEUE.running || QUEUE.waiting.length) { e.preventDefault(); e.returnValue = ''; } });
+
+// Elapsed time since a build started, ticking every second.
+function useElapsed(since, on) {
+  const [, tick] = useState(0);
+  useEffect(() => { if (!on) return; const t = setInterval(() => tick((n) => n + 1), 1000); return () => clearInterval(t); }, [on]);
+  const ms = Math.max(0, Date.now() - new Date(since || Date.now()).getTime());
+  return `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
+}
+
+// The loader: a little house that draws itself while the page is written.
+function House() {
+  return (
+    <svg className="house" viewBox="0 0 80 72" aria-hidden="true">
+      <path className="roof" d="M8 36 L40 8 L72 36" />
+      <path className="walls" d="M16 32 V64 H64 V32" />
+      <path className="door" d="M34 64 V46 H46 V64" />
+      <path className="win" d="M22 40 H30 V48 H22 Z M50 40 H58 V48 H50 Z" />
+      <path className="smoke" d="M54 26 V14 H60 V31" />
+    </svg>
+  );
+}
+const notify = () => QUEUE.listeners.forEach((f) => f());
+function enqueue(job) {
+  return new Promise((resolve, reject) => {
+    const run = async () => { QUEUE.running++; notify(); try { resolve(await job()); } catch (e) { reject(e); } finally { QUEUE.running--; const n = QUEUE.waiting.shift(); notify(); if (n) n(); } };
+    if (QUEUE.running < QUEUE.limit) run(); else { QUEUE.waiting.push(run); notify(); }
+  });
+}
+
 // 'claude-fable-5-1' -> 'Fable 5.1'
 const modelName = (id) => { const m = /claude-([a-z]+)-(\d+)(?:-(\d+))?/.exec(id || ''); return m ? `${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}${m[3] ? '.' + m[3] : ''}` : id; };
 
@@ -87,16 +121,24 @@ export function SitePanel({ lead, settings, onLead, toast }) {
   const site = lead.site || {};
   const [preset, setPreset] = useState(site.preset || (presets[0] && presets[0].name) || '');
   const [busy, setBusy] = useState(false);
+  const [queued, setQueued] = useState(false);
+  const [err, setErr] = useState(null);
   const [full, setFull] = useState(false);
-  // A build that started more than 12 minutes ago and never finished was cut off (tab closed, connection
-  // dropped); let the button come back instead of spinning forever.
-  const stale = site.status === 'building' && Date.now() - new Date(site.started_at || 0).getTime() > 25 * 60 * 1000;
+  const startedRef = useRef(null);
+  // A build lives in the tab that started it. If this tab isn't holding one for this row (page was refreshed,
+  // another tab started it), the row can't finish from here: after three minutes offer to start it again,
+  // and after twenty-five give the button back outright.
+  const age = Date.now() - new Date(site.started_at || 0).getTime();
+  const stale = site.status === 'building' && age > 25 * 60 * 1000;
+  const orphan = site.status === 'building' && !busy && age > 3 * 60 * 1000;
   const building = busy || (site.status === 'building' && !stale);
+  const elapsed = useElapsed(busy ? startedRef.current : site.started_at, building);
   const build = async () => {
     if (!settings?.anthropic_key_last4) { toast('Add your Claude API key in settings first'); return; }
-    setBusy(true);
-    try { onLead(await api.build(lead.id, preset)); } catch (e) { toast('Build failed: ' + e.message); }
-    setBusy(false);
+    startedRef.current = new Date().toISOString();
+    setBusy(true); setErr(null); setQueued(QUEUE.running >= QUEUE.limit);
+    try { onLead(await enqueue(() => { setQueued(false); return api.build(lead.id, preset); })); } catch (e) { setErr(e.message); toast('Build failed, see the note under the button'); }
+    setBusy(false); setQueued(false);
   };
   const vars = { business: lead.name, owner: lead.owner || 'there', phone: lead.phone || '', link: site.url || '', me: settings?.me || '', my_phone: settings?.my_phone || '', plan: lead.plan || '' };
   const fill = (tpl) => (tpl || '').replace(/\{(\w+)\}/g, (_, k) => (k in vars ? vars[k] : ''));
@@ -112,7 +154,18 @@ export function SitePanel({ lead, settings, onLead, toast }) {
         <Pill small onClick={build} disabled={building}>{site.token ? 'Rebuild' : 'Build site'}</Pill>
       </div>
       {stale && !busy && <span className="small" style={{ color: 'var(--red)' }}>the last build was cut off before it finished; build again</span>}
-      {building && <div style={{ aspectRatio: '16 / 10', borderRadius: 8, background: 'var(--box)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}><div className="loader"><span /><span /><span /></div><span className="small muted" style={{ textAlign: 'center', padding: '0 16px' }}>writing the site, this prompt takes ten minutes or more. Keep the app open; you can close this row and keep calling</span></div>}
+      {err && !busy && <span className="small" style={{ color: 'var(--red)', wordBreak: 'break-word' }}>{err}</span>}
+      {building && (
+        <div style={{ aspectRatio: '16 / 10', borderRadius: 8, background: 'var(--box)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 16, textAlign: 'center' }}>
+          <House />
+          <span className="small" style={{ color: 'var(--bright)', fontVariantNumeric: 'tabular-nums' }}>{queued ? 'waiting its turn' : `building · ${elapsed}`}</span>
+          <span className="small muted" style={{ maxWidth: 300 }}>
+            {queued ? 'four sites build at a time; this one starts when a slot opens'
+              : orphan ? <>this tab isn't holding the build anymore (refreshed, or started elsewhere); if it never finishes, <button className="linkish" onClick={build}>start it again</button></>
+              : 'usually four to six minutes. Keep this tab open; you can close the row and keep calling'}
+          </span>
+        </div>
+      )}
       {!building && site.url && (<>
         <div style={{ position: 'relative', aspectRatio: '16 / 10', borderRadius: 8, overflow: 'hidden', background: '#fff', border: '1px solid var(--line)' }}>
           <iframe key={site.version} title="site preview" src={`${site.url}?v=${site.version}`} style={{ width: 1280, height: 800, border: 0, transform: 'scale(0.265)', transformOrigin: 'top left', pointerEvents: 'none' }} />
@@ -154,7 +207,8 @@ export function Loader({ text }) {
 export function useToast() {
   const [msg, setMsg] = useState(null);
   useEffect(() => { if (!msg) return; const t = setTimeout(() => setMsg(null), 3200); return () => clearTimeout(t); }, [msg]);
-  return [msg ? <div className="toast">{msg}</div> : null, setMsg];
+  const show = (m) => setMsg(typeof m === 'string' && m.length > 120 ? m.slice(0, 117) + '…' : m);
+  return [msg ? <div className="toast">{msg}</div> : null, show];
 }
 
 // Hour + AM/PM entry; "9" becomes "9 AM"
