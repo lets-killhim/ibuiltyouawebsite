@@ -64,6 +64,7 @@ export const api = {
     }
     return call('PUT', '/api/build', { id, preset, text, model, input_tokens, output_tokens, stop_reason });
   },
+  sendEmail: (id, to) => call('POST', '/api/send', { id, to }),
   diag: (niche, town, check) => call('POST', '/api/diag', { niche, town, check }),
   clear: (status) => call('POST', '/api/clear', { status }),
   upload: async (leadId, file) => {

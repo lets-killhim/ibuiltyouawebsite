@@ -137,6 +137,23 @@ export function SitePanel({ lead, settings, onLead, toast }) {
   const [queued, setQueued] = useState(false);
   const [chars, setChars] = useState(0);
   const [ask, setAsk] = useState(null); // {notes, palette, color} while the build popup is open
+  const [mailTo, setMailTo] = useState(null); // the address being confirmed while the email popup is open
+  const [sending, setSending] = useState(false);
+  const mailRef = useRef(null);
+  useEffect(() => {
+    if (mailTo === null) return;
+    const down = (e) => { if (mailRef.current && !mailRef.current.contains(e.target)) setMailTo(null); };
+    const key = (e) => { if (e.key === 'Escape') setMailTo(null); };
+    document.addEventListener('mousedown', down); document.addEventListener('keydown', key);
+    return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key); };
+  }, [mailTo]);
+  const sendEmail = async () => {
+    const to = (mailTo || '').trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) { toast('that is not an email address'); return; }
+    setSending(true);
+    try { onLead(await api.sendEmail(lead.id, to)); setMailTo(null); toast('sent to ' + to); } catch (e) { toast('Could not send: ' + e.message); }
+    setSending(false);
+  };
   const askRef = useRef(null);
   // click anywhere outside the popup, or Escape, closes it
   useEffect(() => {
@@ -176,6 +193,7 @@ export function SitePanel({ lead, settings, onLead, toast }) {
   const smsHref = lead.phone ? `sms:${lead.phone.replace(/[^+\d]/g, '')}?&body=${encodeURIComponent(fill(settings?.tpl_text))}` : null;
   const mailHref = lead.email ? `mailto:${lead.email}?subject=${encodeURIComponent(fill(settings?.tpl_email_subject))}&body=${encodeURIComponent(fill(settings?.tpl_email))}` : null;
   const copy = () => { navigator.clipboard.writeText(site.url); toast('link copied'); };
+  const lastSent = (site.sent || []).filter((x) => x.kind === 'email').slice(-1)[0];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -234,7 +252,19 @@ export function SitePanel({ lead, settings, onLead, toast }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>
           <span>send the link:</span>
           {smsHref ? <a className="ring lg" href={smsHref} aria-label="Text the link">{I.msg}</a> : <span className="ring lg off" aria-label="No phone">{I.msg}</span>}
-          {mailHref ? <a className="ring lg" href={mailHref} aria-label="Email the link">{I.mail}</a> : <span className="ring lg off" title="no email found for this business">{I.mail}</span>}
+          {settings?.resend_key_last4 ? (
+            <span ref={mailRef} style={{ position: 'relative', display: 'inline-flex' }}>
+              <button className="ring lg" onClick={() => setMailTo(lead.email || '')} aria-label="Email the link" style={{ cursor: 'pointer' }}>{I.mail}</button>
+              {mailTo !== null && (
+                <div className="pop" style={{ width: 300, top: 52 }}>
+                  <span className="label">email the link to</span>
+                  <input className="input" autoFocus value={mailTo} onChange={(e) => setMailTo(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendEmail(); }} placeholder="their email address" style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none' }} />
+                  <button className="btn" onClick={sendEmail} disabled={sending}>{sending ? 'sending' : 'Send'}</button>
+                </div>
+              )}
+            </span>
+          ) : mailHref ? <a className="ring lg" href={mailHref} aria-label="Email the link">{I.mail}</a> : <span className="ring lg off" title="no email found for this business">{I.mail}</span>}
+          {lastSent && <span style={{ letterSpacing: 0, textTransform: 'none', fontWeight: 400, color: 'var(--ok)' }}>✓ emailed {new Date(lastSent.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>}
         </div>
       </>)}
       {!building && !err && site.status === 'error' && <span className="small" style={{ color: 'var(--red)' }}>{site.error}</span>}

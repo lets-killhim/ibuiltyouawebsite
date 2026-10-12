@@ -5,6 +5,7 @@ import { I } from '../components/ui.jsx';
 const KEYS = [
   ['outscraper_key', 'Outscraper, for finding businesses'],
   ['anthropic_key', 'Claude, for writing the sites'],
+  ['resend_key', 'Resend, for sending emails'],
   ['twilio_sid', 'Twilio account SID, for calls and texts (v2)'],
   ['twilio_token', 'Twilio auth token (v2)'],
   ['cloudflare_token', 'Cloudflare, for hosting (v2)'],
@@ -68,7 +69,7 @@ export default function Settings({ settings, onSaved, toast }) {
           <span className="sect">keys</span>
           {KEYS.map(([k, label]) => (
             <label key={k} className="field" style={{ fontSize: 13 }}>{label}
-              <input className="input" value={keys[k] ?? (s[k + '_last4'] ? '••••••••' + s[k + '_last4'] : '')} onChange={(e) => saveKey(k, e.target.value)} placeholder={k === 'outscraper_key' ? 'paste the key from outscraper.com → API' : 'not needed yet'} />
+              <input className="input" value={keys[k] ?? (s[k + '_last4'] ? '••••••••' + s[k + '_last4'] : '')} onChange={(e) => saveKey(k, e.target.value)} placeholder={k === 'outscraper_key' ? 'paste the key from outscraper.com → API' : k === 'resend_key' ? 'resend.com → API Keys' : 'not needed yet'} />
             </label>
           ))}
           <label className="field" style={{ fontSize: 13 }}>Claude model for site builds
@@ -83,7 +84,7 @@ export default function Settings({ settings, onSaved, toast }) {
           </label>
           <label className="field" style={{ fontSize: 13 }}>your name, as you sign messages<input className="input" value={s.me || ''} onChange={(e) => save({ me: e.target.value })} /></label>
           <label className="field" style={{ fontSize: 13 }}>your phone<input className="input" value={s.my_phone || ''} onChange={(e) => save({ my_phone: e.target.value })} /></label>
-          <label className="field" style={{ fontSize: 13 }}>your sending email<input className="input" value={s.my_email || ''} onChange={(e) => save({ my_email: e.target.value })} /></label>
+          <label className="field" style={{ fontSize: 13 }}>your sending email<input className="input" value={s.my_email || ''} onChange={(e) => save({ my_email: e.target.value })} placeholder="titan@ibuiltyouawebsite.xyz, on the domain you verified in Resend" /></label>
 
           <div className="col" style={{ borderTop: '1px solid var(--line)', paddingTop: 16, gap: 12 }}>
             <span className="sect">payment plans</span>
@@ -121,7 +122,7 @@ export default function Settings({ settings, onSaved, toast }) {
 
         <div className="col">
           <span className="sect">send the link</span>
-          {T('tpl_text', 'text, sent from your Twilio number', 4)}
+          {T('tpl_text', 'text, opens in your Messages app from your own number', 4)}
           <label className="field" style={{ fontSize: 13 }}>email subject<input className="input" value={s.tpl_email_subject || ''} onChange={(e) => save({ tpl_email_subject: e.target.value })} /></label>
           {T('tpl_email', 'email body', 7)}
           {T('tpl_meet', 'meeting invite, sent with a fresh Google Meet link each time', 3)}

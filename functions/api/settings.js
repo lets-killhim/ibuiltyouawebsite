@@ -4,7 +4,7 @@ import { REMODEL_PROMPT } from '../_lib/remodel-prompt.js';
 // Presets saved before this version are the old four and are dropped; edits saved from now on carry the version.
 const PRESETS_VERSION = 3;
 
-const SECRET = ['outscraper_key', 'anthropic_key', 'twilio_sid', 'twilio_token', 'cloudflare_token', 'stripe_key'];
+const SECRET = ['outscraper_key', 'anthropic_key', 'resend_key', 'twilio_sid', 'twilio_token', 'cloudflare_token', 'stripe_key'];
 const DEFAULTS = {
   presets: [{ name: 'remodel', prompt: REMODEL_PROMPT }],
   plans: [],
