@@ -17,8 +17,10 @@ export async function onRequestPost({ request, env }) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return bad('No email address for this lead');
     if (!l.site?.url) return bad('Build the site first');
     const vars = { business: l.name, owner: l.owner || 'there', phone: l.phone || '', link: l.site.url, me: s.me || '', my_phone: s.my_phone || '', plan: l.plan || '', pay_link: '', agreement_link: s.agreement_link || '' };
-    const subject = fill(s.tpl_email_subject, vars) || `Your new ${l.name} website`;
-    const text = fill(s.tpl_email, vars);
+    const subject = fill(s.tpl_email_subject, vars).trim() || `Your new ${l.name} website`;
+    let text = fill(s.tpl_email, vars).trim();
+    if (!text) text = `Hi ${vars.owner},\n\nHere's the website I put together for ${l.name}: ${l.site.url}\n\nTell me what you'd like changed.\n\n${vars.me}\n${vars.my_phone}`.trim();
+    if (!text.includes(l.site.url)) text += `\n\n${l.site.url}`;
     const from = s.me ? `${s.me} <${s.my_email}>` : s.my_email;
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
