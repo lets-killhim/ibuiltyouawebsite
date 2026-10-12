@@ -57,6 +57,7 @@ export default function Settings({ settings, onSaved, toast }) {
   const [diagBusy, setDiagBusy] = useState(false);
   const [check, setCheck] = useState('');
   const [tl, setTl] = useState({ name: 'TitanCorp', email: '', phone: '' });
+  const uploadAgreement = async (f) => { if (!f) return; try { const u = await api.upload('agreement', f); save({ agreement_file: { url: u.url, name: f.name } }); toast('agreement uploaded'); } catch (e) { toast('Upload failed: ' + e.message); } };
   const addTest = async () => { try { await api.addLead(tl.name, tl.email, tl.phone); toast(`${tl.name} added to the callcenter`); } catch (e) { toast('Could not add: ' + e.message); } };
   const runDiag = async () => { setDiagBusy(true); setDiag(null); try { setDiag(await api.diag(s.last_niche || 'pool builders', (s.last_where || 'Scottsdale AZ').split(',')[0].trim(), check.trim() || undefined)); } catch (e) { setDiag({ error: e.message }); } setDiagBusy(false); };
   const T = (k, label, rows) => (
@@ -130,8 +131,13 @@ export default function Settings({ settings, onSaved, toast }) {
           {T('tpl_meet', 'meeting invite, sent with a fresh Google Meet link each time', 3)}
           <label className="field" style={{ fontSize: 13 }}>hosting agreement email subject<input className="input" value={s.tpl_pay_subject || ''} onChange={(e) => save({ tpl_pay_subject: e.target.value })} /></label>
           {T('tpl_pay', 'hosting agreement and payment email, sent from the leads tab', 12)}
-          <label className="field" style={{ fontSize: 13 }}>hosting agreement link<input className="input" value={s.agreement_link || ''} onChange={(e) => save({ agreement_link: e.target.value })} placeholder="link to your agreement PDF or e-sign page" /></label>
-          <span className="small muted">fields in braces fill in from the lead: {'{business} {owner} {phone} {link} {plan} {pay_link} {agreement_link} {meet_link} {date} {time} {me} {my_phone} {my_email}'}</span>
+          <div className="field" style={{ fontSize: 13 }}>hosting agreement, attached to the invoice email
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <label className="btn-sage" style={{ cursor: 'pointer' }}>{s.agreement_file ? 'replace file' : 'upload PDF'}<input type="file" accept=".pdf,.doc,.docx" onChange={(e) => uploadAgreement(e.target.files[0])} style={{ display: 'none' }} /></label>
+              {s.agreement_file ? <a href={s.agreement_file.url} target="_blank" rel="noreferrer" style={{ color: 'var(--bright)' }}>{s.agreement_file.name}</a> : <span className="small muted">none yet</span>}
+            </div>
+          </div>
+          <span className="small muted">fields in braces fill in from the lead: {'{business} {owner} {phone} {link} {plan} {pay_link} {meet_link} {date} {time} {me} {my_phone} {my_email}'}</span>
         </div>
       </div>
       <div className="col" style={{ borderTop: '1px solid var(--line)', paddingTop: 24 }}>

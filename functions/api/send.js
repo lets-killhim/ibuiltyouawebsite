@@ -21,8 +21,9 @@ export async function onRequestPost({ request, env }) {
     const planTitle = body.plan || l.plan || '';
     const plan = (s.plans || []).find((p) => p.title === planTitle) || null;
     if (kind === 'invoice' && !plan) return bad('Pick a plan first; plans are made in settings');
+    if (kind === 'invoice' && !s.agreement_file?.url) return bad('Upload the hosting agreement in settings first');
     if (kind === 'site' && !l.site?.url) return bad('Build the site first');
-    const vars = { business: l.name, owner: l.owner || 'there', phone: l.phone || '', link: l.site?.url || '', me: s.me || '', my_phone: s.my_phone || '', my_email: s.my_email, plan: plan ? plan.title : planTitle, pay_link: plan ? plan.link : '', agreement_link: s.agreement_link || '', date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) };
+    const vars = { business: l.name, owner: l.owner || 'there', phone: l.phone || '', link: l.site?.url || '', me: s.me || '', my_phone: s.my_phone || '', my_email: s.my_email, plan: plan ? plan.title : planTitle, pay_link: plan ? plan.link : '', agreement_link: s.agreement_file?.url || s.agreement_link || '', date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) };
     let subject, text;
     if (kind === 'invoice') {
       subject = fill(s.tpl_pay_subject, vars).trim() || `${l.name}: website hosting agreement and payment`;
@@ -35,10 +36,18 @@ export async function onRequestPost({ request, env }) {
       if (!text.includes(l.site.url)) text += `\n\n${l.site.url}`;
     }
     const from = s.me ? `${s.me} <${s.my_email}>` : s.my_email;
+    const attachments = [];
+    if (kind === 'invoice') {
+      const f = await fetch(s.agreement_file.url);
+      if (!f.ok) return bad('Could not read the agreement file from storage', 500);
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+      attachments.push({ filename: s.agreement_file.name || 'Hosting-Agreement.pdf', content: btoa(bin) });
+    }
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${s.resend_key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from, to: [to], reply_to: s.my_email, subject, text }),
+      body: JSON.stringify({ from, to: [to], reply_to: s.my_email, subject, text, ...(attachments.length ? { attachments } : {}) }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return bad(`Resend ${res.status}: ${data.message || data.error?.message || 'could not send'}`, 502);
