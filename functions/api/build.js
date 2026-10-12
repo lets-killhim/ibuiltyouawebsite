@@ -5,7 +5,7 @@ import { presetsOf } from './settings.js';
 
 // The preset's prompt IS the system prompt. If it carries a CLIENT BRIEF block (a fenced block after a
 // "CLIENT BRIEF" heading), the app rewrites that block from the lead; otherwise the brief is appended.
-export function brief(l, s) {
+export function brief(l, s, inputs = {}) {
   const na = 'not provided';
   const photos = (l.photos || []).slice(0, 14).map((p, i) => `  - ${p.src}${i === 0 ? ' (the listing\'s main photo; subject not described)' : ' (subject not described)'}`);
   const where = [l.city, l.state].filter(Boolean).join(', ');
@@ -32,11 +32,14 @@ export function brief(l, s) {
     `direction: auto`,
     `previous_direction: ${l.site?.direction || 'none'}`,
   ];
+  if (inputs.palette) lines.push(`color_palette: ${inputs.palette}; build the palette from these materials and colors`);
+  if (inputs.color) lines.push(`brand_color: ${inputs.color}; use it as the accent, derive the rest of the palette to suit it`);
+  if (inputs.notes) lines.push(`extra_notes_from_the_designer: ${inputs.notes.replace(/\s+/g, ' ').trim()}`);
   return lines.join('\n');
 }
 
-export function systemFor(prompt, l, s) {
-  const filled = '```\n' + brief(l, s) + '\n```';
+export function systemFor(prompt, l, s, inputs) {
+  const filled = '```\n' + brief(l, s, inputs) + '\n```';
   // the brief is the fenced block under the last "CLIENT BRIEF" heading; mentions of the brief elsewhere stay
   const heads = [...prompt.matchAll(/^#+\s*CLIENT BRIEF[^\n]*$/gim)];
   if (heads.length) {
@@ -76,17 +79,18 @@ export async function onRequestPost({ request, env }) {
   const d = db(env);
   let leadId = null;
   try {
-    const { id, preset } = await request.json();
+    const { id, preset, notes = '', palette = '', color = '' } = await request.json();
     leadId = id;
     const [l] = await d.select('leads', `id=eq.${id}`);
     if (!l) return bad('not found', 404);
     const s = await getSettings(env);
     if (!s.anthropic_key) return bad('Add your Claude API key in settings first');
+    const inputs = { notes: String(notes).slice(0, 2000), palette: String(palette).slice(0, 200), color: /^#[0-9a-f]{6}$/i.test(color) ? color : '' };
     const presets = presetsOf(s);
     const presetDef = presets.find((p) => p.name === preset) || presets[0];
     const model = s.claude_model || 'claude-fable-5-1';
-    await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'building', preset: presetDef.name, error: null, started_at: new Date().toISOString() } });
-    const upstream = await startClaudeStream(s.anthropic_key, { model, effort: s.claude_effort || 'medium', system: systemFor(presetDef.prompt, l, s), user: USER });
+    await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'building', preset: presetDef.name, error: null, started_at: new Date().toISOString(), inputs } });
+    const upstream = await startClaudeStream(s.anthropic_key, { model, effort: s.claude_effort || 'medium', system: systemFor(presetDef.prompt, l, s, inputs), user: USER });
     return new Response(upstream.body, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', 'X-Build-Preset': presetDef.name } });
   } catch (e) {
     await fail(d, leadId, e.message);
@@ -122,7 +126,7 @@ export async function onRequestPut({ request, env }) {
     await d.insert('sites', [{ lead_id: id, token, preset, version, html, model, input_tokens, output_tokens }]);
     await logCost(env, `claude build (${model})`, input_tokens + output_tokens, buildCost(model, input_tokens, output_tokens));
     const url = `${new URL(request.url).origin}/s/${token}`;
-    const [u] = await d.update('leads', `id=eq.${id}`, { site: { status: 'ready', preset, token, url, version, model, direction, built_at: new Date().toISOString(), error: null } });
+    const [u] = await d.update('leads', `id=eq.${id}`, { site: { status: 'ready', preset, token, url, version, model, direction, inputs: l.site?.inputs || null, built_at: new Date().toISOString(), error: null } });
     return json(present(u));
   } catch (e) {
     await fail(d, leadId, e.message);

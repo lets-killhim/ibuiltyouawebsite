@@ -113,6 +113,19 @@ function enqueue(job) {
   });
 }
 
+// Palettes offered in the build popup: a name the designer reads, and the swatches you see.
+export const PALETTES = [
+  ['designer picks', []],
+  ['plaster & walnut', ['#EDE6DA', '#5B3A24', '#1E1B18']],
+  ['slate & brass', ['#2F3A42', '#C8A45D', '#F1EDE6']],
+  ['forest & cream', ['#1F3B2D', '#F3EEE3', '#B8552F']],
+  ['charcoal & safety orange', ['#232323', '#F26A1B', '#E8E4DC']],
+  ['navy & sand', ['#17263B', '#D9C7A5', '#F6F2EA']],
+  ['terracotta & bone', ['#B6553A', '#EFE9DF', '#2A2522']],
+  ['sage & oak', ['#8FA68B', '#C99A61', '#F4F1EA']],
+  ['black & gold', ['#121212', '#C9A24A', '#F2EFE8']],
+];
+
 // 'claude-fable-5-1' -> 'Fable 5.1'
 const modelName = (id) => { const m = /claude-([a-z]+)-(\d+)(?:-(\d+))?/.exec(id || ''); return m ? `${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}${m[3] ? '.' + m[3] : ''}` : id; };
 
@@ -123,6 +136,16 @@ export function SitePanel({ lead, settings, onLead, toast }) {
   const [busy, setBusy] = useState(false);
   const [queued, setQueued] = useState(false);
   const [chars, setChars] = useState(0);
+  const [ask, setAsk] = useState(null); // {notes, palette, color} while the build popup is open
+  const askRef = useRef(null);
+  // click anywhere outside the popup, or Escape, closes it
+  useEffect(() => {
+    if (!ask) return;
+    const down = (e) => { if (askRef.current && !askRef.current.contains(e.target)) setAsk(null); };
+    const key = (e) => { if (e.key === 'Escape') setAsk(null); };
+    document.addEventListener('mousedown', down); document.addEventListener('keydown', key);
+    return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key); };
+  }, [ask]);
   const [err, setErr] = useState(null);
   const [full, setFull] = useState(false);
   const startedRef = useRef(null);
@@ -134,12 +157,17 @@ export function SitePanel({ lead, settings, onLead, toast }) {
   const orphan = site.status === 'building' && !busy && !QUEUE.inflight.has(lead.id) && age > 3 * 60 * 1000;
   const building = busy || (site.status === 'building' && !stale);
   const elapsed = useElapsed(busy ? startedRef.current : site.started_at, building);
-  const build = async () => {
+  const open = () => {
     if (!settings?.anthropic_key_last4) { toast('Add your Claude API key in settings first'); return; }
+    const prev = site.inputs || {};
+    setAsk({ notes: prev.notes || '', palette: prev.palette || '', color: prev.color || '' });
+  };
+  const build = async (inputs) => {
+    setAsk(null);
     startedRef.current = new Date().toISOString();
     QUEUE.inflight.add(lead.id);
     setBusy(true); setErr(null); setChars(0); setQueued(QUEUE.running >= QUEUE.limit);
-    try { onLead(await enqueue(() => { setQueued(false); return api.build(lead.id, preset, setChars); })); } catch (e) { setErr(e.message); toast('Build failed, see the note under the button'); }
+    try { onLead(await enqueue(() => { setQueued(false); return api.build(lead.id, preset, setChars, inputs); })); } catch (e) { setErr(e.message); toast('Build failed, see the note under the button'); }
     QUEUE.inflight.delete(lead.id);
     setBusy(false); setQueued(false);
   };
@@ -154,7 +182,31 @@ export function SitePanel({ lead, settings, onLead, toast }) {
         <select className="input" value={preset} onChange={(e) => setPreset(e.target.value)} aria-label="Preset" style={{ flex: '1 1 auto', minHeight: 44 }}>
           {presets.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
         </select>
-        <Pill small onClick={build} disabled={building}>{site.token ? 'Rebuild' : 'Build site'}</Pill>
+        <span ref={askRef} style={{ position: 'relative' }}>
+          <Pill small onClick={open} disabled={building}>{site.token ? 'Rebuild' : 'Build site'}</Pill>
+          {ask && (
+            <div className="pop" style={{ width: 320 }}>
+              <span className="label">anything the designer should know?</span>
+              <textarea className="input" rows={3} autoFocus value={ask.notes} onChange={(e) => setAsk({ ...ask, notes: e.target.value })} placeholder="owner's name, what they're known for, a vibe, things to avoid" style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', resize: 'none' }} />
+              <span className="label">colors</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {PALETTES.map(([name, sw]) => (
+                  <button key={name} onClick={() => setAsk({ ...ask, palette: name === 'designer picks' ? '' : name })} title={name} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 9px', borderRadius: 999, border: '1.5px solid ' + ((ask.palette || '') === (name === 'designer picks' ? '' : name) ? 'var(--green)' : 'rgba(15,59,46,0.2)'), background: 'var(--paper)', color: 'var(--green)', fontSize: 12, cursor: 'pointer' }}>
+                    {sw.length ? sw.map((c) => <span key={c} style={{ width: 10, height: 10, borderRadius: 999, background: c, display: 'inline-block' }} />) : <span style={{ fontSize: 12 }}>✦</span>}
+                    {name}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                  <input type="color" value={ask.color || '#C8A45D'} onChange={(e) => setAsk({ ...ask, color: e.target.value })} style={{ width: 28, height: 28, padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }} />
+                  {ask.color ? <span>accent {ask.color} <button className="linkish" onClick={() => setAsk({ ...ask, color: '' })} style={{ color: 'var(--green)' }}>clear</button></span> : 'or pick one accent color'}
+                </label>
+                <button className="btn" onClick={() => build(ask)} style={{ marginLeft: 'auto' }}>{site.token ? 'Rebuild' : 'Build'}</button>
+              </div>
+            </div>
+          )}
+        </span>
       </div>
       {stale && !busy && <span className="small" style={{ color: 'var(--red)' }}>the last build was cut off before it finished; build again</span>}
       {err && !busy && <span className="small" style={{ color: 'var(--red)', wordBreak: 'break-word' }}>{err}</span>}
@@ -164,7 +216,7 @@ export function SitePanel({ lead, settings, onLead, toast }) {
           <span className="small" style={{ color: 'var(--bright)', fontVariantNumeric: 'tabular-nums' }}>{queued ? 'waiting its turn' : `building · ${elapsed}${busy && chars ? ` · ${Math.round(chars / 1000)}k written` : ''}`}</span>
           <span className="small muted" style={{ maxWidth: 300 }}>
             {queued ? 'two sites build at a time; this one starts when a slot opens'
-              : orphan ? <>this tab isn't holding the build anymore (refreshed, or started elsewhere); if it never finishes, <button className="linkish" onClick={build}>start it again</button></>
+              : orphan ? <>this tab isn't holding the build anymore (refreshed, or started elsewhere); if it never finishes, <button className="linkish" onClick={open}>start it again</button></>
               : 'usually four to six minutes. Keep this tab open; you can close the row and keep calling'}
           </span>
         </div>
@@ -178,6 +230,7 @@ export function SitePanel({ lead, settings, onLead, toast }) {
           <a href={site.url} target="_blank" rel="noreferrer" style={{ color: 'var(--bright)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{site.url.replace(/^https?:\/\//, '')}</a>
           <button className="btn-ghost" onClick={copy} style={{ height: 32, padding: '0 12px', flexShrink: 0 }}>copy</button>
         </div>
+        {site.built_at && <span className="small muted">built {new Date(site.built_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}{site.version > 1 ? `, version ${site.version}` : ''}</span>}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>
           <span>send the link:</span>
           {smsHref ? <a className="ring lg" href={smsHref} aria-label="Text the link">{I.msg}</a> : <span className="ring lg off" aria-label="No phone">{I.msg}</span>}

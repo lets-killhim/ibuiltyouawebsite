@@ -31,8 +31,8 @@ export const api = {
   enrich: (id) => call('POST', '/api/enrich', { id }),
   // A build streams Claude's reply through to this tab; the tab assembles it and hands it back to be saved.
   // onProgress(chars) fires as text arrives. Resolves with the updated lead.
-  build: async (id, preset, onProgress) => {
-    const res = await fetch('/api/build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, preset }), credentials: 'same-origin' });
+  build: async (id, preset, onProgress, inputs = {}) => {
+    const res = await fetch('/api/build', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, preset, ...inputs }), credentials: 'same-origin' });
     if (!res.ok || !(res.headers.get('Content-Type') || '').includes('event-stream')) {
       const text = await res.text(); let data = null;
       try { data = JSON.parse(text); } catch { data = { error: `the server cut the request off (${res.status}); try again` }; }
