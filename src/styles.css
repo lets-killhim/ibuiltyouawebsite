@@ -126,7 +126,7 @@ select.input { font-weight: 600; }
 .col { display: flex; flex-direction: column; gap: 18px; }
 .sect { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .plan { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 14px; border-top: 1px solid rgba(191,224,184,0.15); padding-top: 8px; }
-.btn-sage { height: 42px; padding: 0 16px; border-radius: 999px; border: 0; background: var(--sage); color: var(--green); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.btn-sage { height: 42px; padding: 0 16px; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; border-radius: 999px; border: 0; background: var(--sage); color: var(--green); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
 .btn-sage.off { background: rgba(191,224,184,0.15); color: var(--muted); }
 .btn-ghost { height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(191,224,184,0.35); background: transparent; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
 
