@@ -93,6 +93,7 @@ export default function Callcenter({ settings, toast, refreshCounts, summary }) 
     site: (a, b) => (b.site?.url ? 1 : 0) - (a.site?.url ? 1 : 0) || (b.reviews || 0) - (a.reviews || 0),
   };
   const shown = [...leads].sort(SORTS[sort] || SORTS.score).slice(0, visible).filter((l) => l.status === filter && (!needle || `${l.name} ${l.city || ''} ${l.phone || ''}`.toLowerCase().includes(needle)));
+  const allOpen = shown.length > 0 && shown.every((l) => open[l.id]);
   const headline = phase === 'idle' ? ['Who should', 'we find?'] : phase === 'scanning' ? ['Finding', niche + '.'] : [String(shown.length), filter === 'new' ? 'to call.' : 'to call back.'];
 
   return (
@@ -123,6 +124,7 @@ export default function Callcenter({ settings, toast, refreshCounts, summary }) 
             <option value="area">sort: area code</option>
             <option value="site">sort: site built</option>
           </select>
+          <button className={allOpen ? 'on' : ''} onClick={() => setOpen(allOpen ? {} : Object.fromEntries(shown.map((l) => [l.id, true])))} title={allOpen ? 'close every row' : 'open every row'}>{allOpen ? '( close all )' : '( open all )'}</button>
         </div>
       </div>
 
