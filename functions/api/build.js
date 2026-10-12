@@ -1,7 +1,7 @@
 import { db, json, bad, getSettings, logCost } from '../_lib/db.js';
 import { present } from '../_lib/leads.js';
 import { startClaudeStream, extractHtml, notesAround } from '../_lib/claude.js';
-import { presetsOf } from './settings.js';
+import { withDefaults } from './settings.js';
 
 // The preset's prompt IS the system prompt. If it carries a CLIENT BRIEF block (a fenced block after a
 // "CLIENT BRIEF" heading), the app rewrites that block from the lead; otherwise the brief is appended.
@@ -83,10 +83,10 @@ export async function onRequestPost({ request, env }) {
     leadId = id;
     const [l] = await d.select('leads', `id=eq.${id}`);
     if (!l) return bad('not found', 404);
-    const s = await getSettings(env);
+    const s = withDefaults(await getSettings(env));
     if (!s.anthropic_key) return bad('Add your Claude API key in settings first');
     const inputs = { notes: String(notes).slice(0, 2000), palette: String(palette).slice(0, 200), color: /^#[0-9a-f]{6}$/i.test(color) ? color : '' };
-    const presets = presetsOf(s);
+    const presets = s.presets;
     const presetDef = presets.find((p) => p.name === preset) || presets[0];
     const model = s.claude_model || 'claude-fable-5-1';
     await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'building', preset: presetDef.name, error: null, started_at: new Date().toISOString(), inputs } });

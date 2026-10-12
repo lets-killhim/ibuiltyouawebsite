@@ -19,8 +19,11 @@ const DEFAULTS = {
 
 export const presetsOf = (data) => (data.presets_version === PRESETS_VERSION && Array.isArray(data.presets) && data.presets.length ? data.presets : DEFAULTS.presets);
 
+// Settings exactly as the settings tab shows them: saved values over the defaults.
+export const withDefaults = (data) => ({ ...DEFAULTS, ...data, presets: presetsOf(data) });
+
 export function mask(data) {
-  const out = { ...DEFAULTS, ...data, presets: presetsOf(data) };
+  const out = withDefaults(data);
   for (const k of SECRET) { if (out[k]) { out[k + '_last4'] = String(out[k]).slice(-4); } delete out[k]; }
   out.has_outscraper = !!data.outscraper_key;
   return out;

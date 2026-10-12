@@ -1,6 +1,7 @@
 // Sends the site link to a lead by email through Resend, from the address in settings. Logs it on the lead.
 import { db, json, bad, getSettings } from '../_lib/db.js';
 import { present } from '../_lib/leads.js';
+import { withDefaults } from './settings.js';
 
 export function fill(tpl, vars) { return (tpl || '').replace(/\{(\w+)\}/g, (_, k) => (k in vars ? vars[k] ?? '' : '')); }
 
@@ -10,7 +11,7 @@ export async function onRequestPost({ request, env }) {
     const { id, to: override } = await request.json();
     const [l] = await d.select('leads', `id=eq.${id}`);
     if (!l) return bad('not found', 404);
-    const s = await getSettings(env);
+    const s = withDefaults(await getSettings(env));
     if (!s.resend_key) return bad('Add your Resend key in settings first');
     if (!s.my_email) return bad('Set your sending email in settings first');
     const to = (override || l.email || '').trim();
