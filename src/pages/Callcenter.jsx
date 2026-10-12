@@ -12,6 +12,7 @@ export default function Callcenter({ settings, toast, refreshCounts, summary }) 
   const [leads, setLeads] = useState([]);
   const [visible, setVisible] = useState(0);
   const [filter, setFilter] = useState('new');
+  const [sort, setSort] = useState('score'); // score | photos | reviews | area | site
   const [open, setOpen] = useState({});
   const [popup, setPopup] = useState(null); // {id, kind, step, date, hour, ampm, notes}
   const [enriching, setEnriching] = useState(null);
@@ -83,7 +84,15 @@ export default function Callcenter({ settings, toast, refreshCounts, summary }) 
   const trash = (id) => { setLeads((ls) => ls.filter((x) => x.id !== id)); api.patchLead(id, { status: 'trash' }).then(refreshCounts).catch(() => {}); };
 
   const needle = find.trim().toLowerCase();
-  const shown = leads.slice(0, visible).filter((l) => l.status === filter && (!needle || `${l.name} ${l.city || ''} ${l.phone || ''}`.toLowerCase().includes(needle)));
+  const area = (l) => { const d = (l.phone || '').replace(/\D/g, ''); return d.length === 11 ? d.slice(1, 4) : d.slice(0, 3); };
+  const SORTS = {
+    score: (a, b) => (b.score || 0) - (a.score || 0) || (b.reviews || 0) - (a.reviews || 0),
+    photos: (a, b) => (b.photos || []).length - (a.photos || []).length,
+    reviews: (a, b) => (b.reviews || 0) - (a.reviews || 0),
+    area: (a, b) => area(a).localeCompare(area(b)) || (b.reviews || 0) - (a.reviews || 0),
+    site: (a, b) => (b.site?.url ? 1 : 0) - (a.site?.url ? 1 : 0) || (b.reviews || 0) - (a.reviews || 0),
+  };
+  const shown = [...leads].sort(SORTS[sort] || SORTS.score).slice(0, visible).filter((l) => l.status === filter && (!needle || `${l.name} ${l.city || ''} ${l.phone || ''}`.toLowerCase().includes(needle)));
   const headline = phase === 'idle' ? ['Who should', 'we find?'] : phase === 'scanning' ? ['Finding', niche + '.'] : [String(shown.length), filter === 'new' ? 'to call.' : 'to call back.'];
 
   return (
@@ -107,6 +116,13 @@ export default function Callcenter({ settings, toast, refreshCounts, summary }) 
           <input className="input" value={find} onChange={(e) => setFind(e.target.value)} placeholder="find a name" aria-label="Find a lead" style={{ width: 180, minHeight: 36, padding: '6px 12px', borderRadius: 999, fontWeight: 400, letterSpacing: 0, textTransform: 'none' }} />
           <button className={filter === 'new' ? 'on' : ''} onClick={() => setFilter('new')}>( today ) {leads.filter((l) => l.status === 'new').length || ''}</button>
           <button className={filter === 'callback' ? 'on' : ''} onClick={() => setFilter('callback')}>( call later ) {leads.filter((l) => l.status === 'callback').length || ''}</button>
+          <select className="input" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort" style={{ width: 'auto', minHeight: 36, padding: '6px 12px', borderRadius: 999, fontWeight: 400, letterSpacing: 0, textTransform: 'none' }}>
+            <option value="score">sort: best first</option>
+            <option value="reviews">sort: most reviews</option>
+            <option value="photos">sort: most photos</option>
+            <option value="area">sort: area code</option>
+            <option value="site">sort: site built</option>
+          </select>
         </div>
       </div>
 
