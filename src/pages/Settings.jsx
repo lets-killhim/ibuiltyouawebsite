@@ -56,6 +56,8 @@ export default function Settings({ settings, onSaved, toast }) {
   const [diag, setDiag] = useState(null);
   const [diagBusy, setDiagBusy] = useState(false);
   const [check, setCheck] = useState('');
+  const [tl, setTl] = useState({ name: 'TitanCorp', email: '', phone: '' });
+  const addTest = async () => { try { await api.addLead(tl.name, tl.email, tl.phone); toast(`${tl.name} added to the callcenter`); } catch (e) { toast('Could not add: ' + e.message); } };
   const runDiag = async () => { setDiagBusy(true); setDiag(null); try { setDiag(await api.diag(s.last_niche || 'pool builders', (s.last_where || 'Scottsdale AZ').split(',')[0].trim(), check.trim() || undefined)); } catch (e) { setDiag({ error: e.message }); } setDiagBusy(false); };
   const T = (k, label, rows) => (
     <label className="field" style={{ fontSize: 13 }}>{label}<textarea className="input" rows={rows} value={s[k] || ''} onChange={(e) => save({ [k]: e.target.value })} /></label>
@@ -138,6 +140,13 @@ export default function Settings({ settings, onSaved, toast }) {
           <input className="input" value={check} onChange={(e) => setCheck(e.target.value)} placeholder='check one business: "Austin Remodeling Experts, Austin TX" (leave empty for the full test)' style={{ flex: '1 1 360px' }} />
           <button className="btn-sage" onClick={runDiag} disabled={diagBusy}>{diagBusy ? 'running, up to a minute' : check.trim() ? 'check this business' : 'test Outscraper'}</button>
           {diag && <button className="btn-ghost" onClick={() => { navigator.clipboard.writeText(JSON.stringify(diag, null, 2)); toast('copied'); }}>copy output</button>}
+        </div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
+          <span className="small muted">add a test lead (no scraping):</span>
+          <input className="input" value={tl.name} onChange={(e) => setTl({ ...tl, name: e.target.value })} placeholder="name" style={{ width: 160 }} />
+          <input className="input" value={tl.email} onChange={(e) => setTl({ ...tl, email: e.target.value })} placeholder="email" style={{ width: 240 }} />
+          <input className="input" value={tl.phone} onChange={(e) => setTl({ ...tl, phone: e.target.value })} placeholder="phone, optional" style={{ width: 160 }} />
+          <button className="btn-sage" onClick={addTest}>add</button>
         </div>
         {diag && <pre className="input" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 12, lineHeight: 1.4, maxHeight: 420, overflow: 'auto', fontFamily: 'ui-monospace, Menlo, monospace' }}>{JSON.stringify(diag, null, 2)}</pre>}
       </div>

@@ -25,3 +25,15 @@ export async function onRequestPatch({ request, env }) {
     return json(present(rows[0]));
   } catch (e) { return bad(e.message, 500); }
 }
+
+// A hand-made lead for testing: name and email only, marked enriched so no scraping runs on it.
+export async function onRequestPost({ request, env }) {
+  try {
+    const { name, email, phone } = await request.json();
+    if (!name) return bad('name required');
+    const row = { place_id: 'manual-' + Math.random().toString(36).slice(2, 10), name: String(name).slice(0, 120), email: email || null, phone: phone || null, phone_digits: (phone || '').replace(/\D/g, '') || null, status: 'new', score: 100, tier: 'A', photos: [], enriched_at: new Date().toISOString() };
+    const [u] = await db(env).insert('leads', [row]);
+    return json(present(u));
+  } catch (e) { return bad(e.message, 500); }
+}
+
