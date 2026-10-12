@@ -14,7 +14,8 @@ const DEFAULTS = {
   tpl_email_subject: 'Your new {business} website',
   tpl_email: "Hi {owner},\n\nGood talking with you. Here's the website I put together for {business}: {link}\n\nEverything on it came from your Google listing and photos, so tell me what to change. If you want it live on your own domain, the plan is {plan}, and you can pay here: {pay_link}\n\n{me}\n{my_phone}",
   tpl_meet: "Hi {owner}, here's the link for our call on {date} at {time}: {meet_link}. Talk soon, {me}",
-  tpl_pay: "Hi {owner}, here's the hosting agreement for {business}: {agreement_link}. Your plan is {plan}. When you're ready, pay here and I'll start on the domain: {pay_link}. {me}",
+  tpl_pay_subject: '{business}: website hosting agreement and payment',
+  tpl_pay: "Hi {owner},\n\nThanks again for choosing to move forward. Here is everything to get {business}'s website live:\n\n1. Hosting Agreement: {agreement_link}\n   Please read it in full. To accept, reply to this email with the words \"I agree\". Your reply constitutes your electronic signature and acceptance of the Hosting Agreement, in accordance with the U.S. Electronic Signatures in Global and National Commerce Act (E-SIGN). Completing the payment below also constitutes acceptance of the Agreement.\n\n2. Payment: {pay_link}\n   Plan: {plan}. The link is a secure Stripe checkout; you'll get a receipt by email from Stripe.\n\nOnce I have your reply and the payment confirmation, I'll register your domain and have the site live within a few business days. Reply to this email or call me at {my_phone} with any questions.\n\n{me}\n{my_email}\n{date}",
 };
 
 export const presetsOf = (data) => (data.presets_version === PRESETS_VERSION && Array.isArray(data.presets) && data.presets.length ? data.presets : DEFAULTS.presets);

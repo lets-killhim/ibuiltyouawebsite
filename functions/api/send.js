@@ -8,7 +8,8 @@ export function fill(tpl, vars) { return (tpl || '').replace(/\{(\w+)\}/g, (_, k
 export async function onRequestPost({ request, env }) {
   const d = db(env);
   try {
-    const { id, to: override } = await request.json();
+    const body = await request.json();
+    const { id, to: override } = body;
     const [l] = await d.select('leads', `id=eq.${id}`);
     if (!l) return bad('not found', 404);
     const s = withDefaults(await getSettings(env));
@@ -16,12 +17,23 @@ export async function onRequestPost({ request, env }) {
     if (!s.my_email) return bad('Set your sending email in settings first');
     const to = (override || l.email || '').trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return bad('No email address for this lead');
-    if (!l.site?.url) return bad('Build the site first');
-    const vars = { business: l.name, owner: l.owner || 'there', phone: l.phone || '', link: l.site.url, me: s.me || '', my_phone: s.my_phone || '', plan: l.plan || '', pay_link: '', agreement_link: s.agreement_link || '' };
-    const subject = fill(s.tpl_email_subject, vars).trim() || `Your new ${l.name} website`;
-    let text = fill(s.tpl_email, vars).trim();
-    if (!text) text = `Hi ${vars.owner},\n\nHere's the website I put together for ${l.name}: ${l.site.url}\n\nTell me what you'd like changed.\n\n${vars.me}\n${vars.my_phone}`.trim();
-    if (!text.includes(l.site.url)) text += `\n\n${l.site.url}`;
+    const kind = body.kind === 'invoice' ? 'invoice' : 'site';
+    const planTitle = body.plan || l.plan || '';
+    const plan = (s.plans || []).find((p) => p.title === planTitle) || null;
+    if (kind === 'invoice' && !plan) return bad('Pick a plan first; plans are made in settings');
+    if (kind === 'site' && !l.site?.url) return bad('Build the site first');
+    const vars = { business: l.name, owner: l.owner || 'there', phone: l.phone || '', link: l.site?.url || '', me: s.me || '', my_phone: s.my_phone || '', my_email: s.my_email, plan: plan ? plan.title : planTitle, pay_link: plan ? plan.link : '', agreement_link: s.agreement_link || '', date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) };
+    let subject, text;
+    if (kind === 'invoice') {
+      subject = fill(s.tpl_pay_subject, vars).trim() || `${l.name}: website hosting agreement and payment`;
+      text = fill(s.tpl_pay, vars).trim();
+      if (!text) return bad('The hosting agreement email in settings is empty');
+    } else {
+      subject = fill(s.tpl_email_subject, vars).trim() || `Your new ${l.name} website`;
+      text = fill(s.tpl_email, vars).trim();
+      if (!text) text = `Hi ${vars.owner},\n\nHere's the website I put together for ${l.name}: ${l.site.url}\n\nTell me what you'd like changed.\n\n${vars.me}\n${vars.my_phone}`.trim();
+      if (!text.includes(l.site.url)) text += `\n\n${l.site.url}`;
+    }
     const from = s.me ? `${s.me} <${s.my_email}>` : s.my_email;
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -30,8 +42,9 @@ export async function onRequestPost({ request, env }) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return bad(`Resend ${res.status}: ${data.message || data.error?.message || 'could not send'}`, 502);
-    const sent = [...(l.site.sent || []), { kind: 'email', to, at: new Date().toISOString(), id: data.id || null }].slice(-20);
-    const patch = { site: { ...l.site, sent } };
+    const sent = [...(l.site?.sent || []), { kind: kind === 'invoice' ? 'invoice' : 'email', to, at: new Date().toISOString(), id: data.id || null, plan: plan ? plan.title : undefined }].slice(-20);
+    const patch = { site: { ...(l.site || {}), sent } };
+    if (kind === 'invoice') { patch.pay = 'sent'; patch.plan = plan.title; }
     if (override && override !== l.email) patch.email = to;
     const [u] = await d.update('leads', `id=eq.${id}`, patch);
     return json(present(u));

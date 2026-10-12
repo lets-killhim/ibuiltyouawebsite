@@ -66,6 +66,7 @@ export const api = {
   },
   addLead: (name, email, phone) => call('POST', '/api/leads', { name, email, phone }),
   sendEmail: (id, to) => call('POST', '/api/send', { id, to }),
+  sendInvoice: (id, to, plan) => call('POST', '/api/send', { id, to, plan, kind: 'invoice' }),
   diag: (niche, town, check) => call('POST', '/api/diag', { niche, town, check }),
   clear: (status) => call('POST', '/api/clear', { status }),
   upload: async (leadId, file) => {

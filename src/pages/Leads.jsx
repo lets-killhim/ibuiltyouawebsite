@@ -44,6 +44,16 @@ function ClientRow({ lead: l, open, toggle, patch, settings, toast, refreshCount
   const [editOwner, setEditOwner] = useState(false);
   const [owner, setOwner] = useState(l.owner || '');
   const [dragging, setDragging] = useState(false);
+  const [invoice, setInvoice] = useState(null);
+  const [sendingInv, setSendingInv] = useState(false);
+  const lastInvoice = ((l.site || {}).sent || []).filter((x) => x.kind === 'invoice').slice(-1)[0];
+  const sendInvoice = async () => {
+    const to = (invoice || '').trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) { toast('that is not an email address'); return; }
+    setSendingInv(true);
+    try { patchLocal(await api.sendInvoice(l.id, to, plan)); setInvoice(null); toast('invoice sent to ' + to); } catch (e) { toast('Could not send: ' + e.message); }
+    setSendingInv(false);
+  };
   const saveT = useRef(null);
   const site = l.site || {};
   const live = l.live || [0, 0, 0, 0];
@@ -102,8 +112,19 @@ function ClientRow({ lead: l, open, toggle, patch, settings, toast, refreshCount
               <select className="input" value={plan} onChange={(e) => patch(l.id, { plan: e.target.value })}>
                 {plans.length ? plans.map((p) => <option key={p.title} value={p.title}>{p.title}</option>) : <option value="">add plans in settings</option>}
               </select>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>payment</span><span className="muted">{l.pay || 'not sent'}</span></div>
-              <span className="small muted">agreement and payment link sending arrives with Stripe in v2</span>
+              {invoice === null ? (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button className={'btn-sage' + (plans.length ? '' : ' off')} onClick={() => setInvoice(l.email || '')}>{lastInvoice ? 'send invoice again' : 'send invoice'}</button>
+                  {l.pay === 'paid' ? <span style={{ color: 'var(--ok)' }}>paid</span> : lastInvoice ? <span className="muted">sent {new Date(lastInvoice.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · <button className="linkish" onClick={() => patch(l.id, { pay: 'paid' })}>mark paid</button></span> : <span className="muted">not sent</span>}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input className="input" autoFocus value={invoice} onChange={(e) => setInvoice(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendInvoice(); if (e.key === 'Escape') setInvoice(null); }} placeholder="their email" style={{ flex: '1 1 auto' }} />
+                  <button className="btn-sage" onClick={sendInvoice} disabled={sendingInv}>{sendingInv ? 'sending' : 'send'}</button>
+                  <button className="btn-ghost" onClick={() => setInvoice(null)}>cancel</button>
+                </div>
+              )}
+              <span className="small muted">emails the {plan ? plan : 'selected'} Stripe link and the hosting agreement; they accept by replying "I agree" or by paying</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
               <span className="sect">going live</span>

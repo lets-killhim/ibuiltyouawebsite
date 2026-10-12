@@ -128,9 +128,10 @@ export default function Settings({ settings, onSaved, toast }) {
           <label className="field" style={{ fontSize: 13 }}>email subject<input className="input" value={s.tpl_email_subject || ''} onChange={(e) => save({ tpl_email_subject: e.target.value })} /></label>
           {T('tpl_email', 'email body', 7)}
           {T('tpl_meet', 'meeting invite, sent with a fresh Google Meet link each time', 3)}
-          {T('tpl_pay', 'hosting agreement and payment message', 5)}
+          <label className="field" style={{ fontSize: 13 }}>hosting agreement email subject<input className="input" value={s.tpl_pay_subject || ''} onChange={(e) => save({ tpl_pay_subject: e.target.value })} /></label>
+          {T('tpl_pay', 'hosting agreement and payment email, sent from the leads tab', 12)}
           <label className="field" style={{ fontSize: 13 }}>hosting agreement link<input className="input" value={s.agreement_link || ''} onChange={(e) => save({ agreement_link: e.target.value })} placeholder="link to your agreement PDF or e-sign page" /></label>
-          <span className="small muted">fields in braces fill in from the lead: {'{business} {owner} {phone} {link} {plan} {pay_link} {agreement_link} {meet_link} {date} {time} {me} {my_phone}'}</span>
+          <span className="small muted">fields in braces fill in from the lead: {'{business} {owner} {phone} {link} {plan} {pay_link} {agreement_link} {meet_link} {date} {time} {me} {my_phone} {my_email}'}</span>
         </div>
       </div>
       <div className="col" style={{ borderTop: '1px solid var(--line)', paddingTop: 24 }}>
