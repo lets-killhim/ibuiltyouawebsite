@@ -23,7 +23,11 @@ export async function onRequestPost({ request, env }) {
     if (kind === 'invoice' && !plan) return bad('Pick a plan first; plans are made in settings');
     if (kind === 'invoice' && !s.agreement_file?.url) return bad('Upload the hosting agreement in settings first');
     if (kind === 'site' && !l.site?.url) return bad('Build the site first');
-    const vars = { business: l.name, owner: l.owner || 'there', phone: l.phone || '', link: l.site?.url || '', me: s.me || '', my_phone: s.my_phone || '', my_email: s.my_email, plan: plan ? plan.title : planTitle, pay_link: plan ? plan.link : '', agreement_link: s.agreement_file?.url || s.agreement_link || '', date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) };
+    // every lead gets a booking link the first time one is needed
+    let site = l.site || {};
+    if (!site.book_token) { site = { ...site, book_token: Math.random().toString(36).slice(2, 14) }; await d.update('leads', `id=eq.${id}`, { site }); l.site = site; }
+    const book_link = `${new URL(request.url).origin}/book/${site.book_token}`;
+    const vars = { book_link, business: l.name, owner: l.owner || 'there', phone: l.phone || '', link: l.site?.url || '', me: s.me || '', my_phone: s.my_phone || '', my_email: s.my_email, plan: plan ? plan.title : planTitle, pay_link: plan ? plan.link : '', agreement_link: s.agreement_file?.url || s.agreement_link || '', date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) };
     let subject, text;
     if (kind === 'invoice') {
       subject = fill(s.tpl_pay_subject, vars).trim() || `${l.name}: website hosting agreement and payment`;

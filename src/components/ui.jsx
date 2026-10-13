@@ -196,7 +196,17 @@ export function SitePanel({ lead, settings, onLead, toast }) {
     QUEUE.inflight.delete(lead.id);
     setBusy(false); setQueued(false);
   };
-  const vars = { business: lead.name, owner: lead.owner || 'there', phone: lead.phone || '', link: site.url || '', me: settings?.me || '', my_phone: settings?.my_phone || '', plan: lead.plan || '' };
+  const bookLink = site.book_token ? `${window.location.origin}/book/${site.book_token}` : '';
+  const vars = { business: lead.name, owner: lead.owner || 'there', phone: lead.phone || '', link: site.url || '', book_link: bookLink, me: settings?.me || '', my_phone: settings?.my_phone || '', plan: lead.plan || '' };
+  // a text that uses {book_link} needs the lead to have a booking token first; make one on the way out
+  const ensureBook = async (e) => {
+    if (site.book_token || !/\{book_link\}/.test(settings?.tpl_text || '')) return;
+    e.preventDefault();
+    const token = Math.random().toString(36).slice(2, 14);
+    try { const u = await api.patchLead(lead.id, { site: { ...site, book_token: token } }); onLead(u); } catch { /* fall through */ }
+    const href = `sms:${lead.phone.replace(/[^+\d]/g, '')}?&body=${encodeURIComponent(fill(settings?.tpl_text).replace('{book_link}', `${window.location.origin}/book/${token}`))}`;
+    window.location.href = href;
+  };
   const fill = (tpl) => (tpl || '').replace(/\{(\w+)\}/g, (_, k) => (k in vars ? vars[k] : ''));
   const smsHref = lead.phone ? `sms:${lead.phone.replace(/[^+\d]/g, '')}?&body=${encodeURIComponent(fill(settings?.tpl_text))}` : null;
   const mailHref = lead.email ? `mailto:${lead.email}?subject=${encodeURIComponent(fill(settings?.tpl_email_subject))}&body=${encodeURIComponent(fill(settings?.tpl_email))}` : null;
@@ -259,7 +269,7 @@ export function SitePanel({ lead, settings, onLead, toast }) {
         {site.built_at && <span className="small muted">built {new Date(site.built_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}{site.version > 1 ? `, version ${site.version}` : ''}</span>}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>
           <span>send the link:</span>
-          {smsHref ? <a className="ring lg" href={smsHref} aria-label="Text the link">{I.msg}</a> : <span className="ring lg off" aria-label="No phone">{I.msg}</span>}
+          {smsHref ? <a className="ring lg" href={smsHref} onClick={ensureBook} aria-label="Text the link">{I.msg}</a> : <span className="ring lg off" aria-label="No phone">{I.msg}</span>}
           {settings?.resend_key_last4 ? (
             <span ref={mailRef} style={{ position: 'relative', display: 'inline-flex' }}>
               <button className="ring lg" onClick={() => setMailTo(lead.email || '')} aria-label="Email the link" style={{ cursor: 'pointer' }}>{I.mail}</button>

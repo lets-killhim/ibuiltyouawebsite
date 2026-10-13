@@ -90,6 +90,24 @@ export default function Settings({ settings, onSaved, toast }) {
           <label className="field" style={{ fontSize: 13 }}>your sending email<input className="input" value={s.my_email || ''} onChange={(e) => save({ my_email: e.target.value })} placeholder="titan@ibuiltyouawebsite.xyz, on the domain you verified in Resend" /></label>
 
           <div className="col" style={{ borderTop: '1px solid var(--line)', paddingTop: 16, gap: 12 }}>
+            <span className="sect">booking link</span>
+            <span className="small muted">{'{book_link}'} in any message opens a page where they pick a slot from this availability; it lands on your calendar as a confirmed meeting</span>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((dn, i) => { const on = (s.book_days || []).map(Number).includes(i); return <button key={dn} onClick={() => save({ book_days: on ? (s.book_days || []).filter((x) => Number(x) !== i) : [...(s.book_days || []), i].sort() })} style={{ borderRadius: 999, padding: '6px 12px', border: '1px solid ' + (on ? 'var(--sage)' : 'var(--line)'), background: on ? 'var(--sage)' : 'transparent', color: on ? 'var(--green)' : 'var(--txt)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{dn}</button>; })}
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <label className="field" style={{ fontSize: 13, flex: '1 1 120px' }}>from<select className="input" value={s.book_start ?? 9} onChange={(e) => save({ book_start: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{h % 12 || 12} {h < 12 ? 'AM' : 'PM'}</option>)}</select></label>
+              <label className="field" style={{ fontSize: 13, flex: '1 1 120px' }}>to<select className="input" value={s.book_end ?? 17} onChange={(e) => save({ book_end: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h + 1}>{(h + 1) % 12 || 12} {h + 1 < 12 || h + 1 === 24 ? 'AM' : 'PM'}</option>)}</select></label>
+              <label className="field" style={{ fontSize: 13, flex: '1 1 120px' }}>slot<select className="input" value={s.book_slot ?? 30} onChange={(e) => save({ book_slot: Number(e.target.value) })}>{[15, 20, 30, 45, 60].map((m) => <option key={m} value={m}>{m} min</option>)}</select></label>
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <label className="field" style={{ fontSize: 13, flex: '1 1 140px' }}>days ahead<select className="input" value={s.book_ahead ?? 14} onChange={(e) => save({ book_ahead: Number(e.target.value) })}>{[7, 14, 21, 30].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
+              <label className="field" style={{ fontSize: 13, flex: '1 1 140px' }}>notice<select className="input" value={s.book_buffer_hours ?? 2} onChange={(e) => save({ book_buffer_hours: Number(e.target.value) })}>{[0, 1, 2, 4, 24].map((n) => <option key={n} value={n}>{n === 0 ? 'none' : n + ' h'}</option>)}</select></label>
+              <label className="field" style={{ fontSize: 13, flex: '1 1 200px' }}>time zone<select className="input" value={s.book_tz || 'America/Los_Angeles'} onChange={(e) => save({ book_tz: e.target.value })}>{['America/Los_Angeles', 'America/Denver', 'America/Phoenix', 'America/Chicago', 'America/New_York', 'Pacific/Honolulu', 'America/Anchorage'].map((z) => <option key={z} value={z}>{z.split('/')[1].replace('_', ' ')}</option>)}</select></label>
+            </div>
+          </div>
+
+          <div className="col" style={{ borderTop: '1px solid var(--line)', paddingTop: 16, gap: 12 }}>
             <span className="sect">payment plans</span>
             <span className="small muted">make the plan in Stripe, paste its payment link here, give it a name; it shows up in the leads tab</span>
             {plans.map((p, i) => (
@@ -137,7 +155,7 @@ export default function Settings({ settings, onSaved, toast }) {
               {s.agreement_file ? <a href={s.agreement_file.url} target="_blank" rel="noreferrer" style={{ color: 'var(--bright)' }}>{s.agreement_file.name}</a> : <span className="small muted">none yet</span>}
             </div>
           </div>
-          <span className="small muted">fields in braces fill in from the lead: {'{business} {owner} {phone} {link} {plan} {pay_link} {meet_link} {date} {time} {me} {my_phone} {my_email}'}</span>
+          <span className="small muted">fields in braces fill in from the lead: {'{business} {owner} {phone} {link} {book_link} {plan} {pay_link} {meet_link} {date} {time} {me} {my_phone} {my_email}'}</span>
         </div>
       </div>
       <div className="col" style={{ borderTop: '1px solid var(--line)', paddingTop: 24 }}>
