@@ -62,9 +62,10 @@ export const api = {
       await call('PUT', '/api/build', { id, error: e.message }).catch(() => {});
       throw e;
     }
-    return call('PUT', '/api/build', { id, preset, text, model, input_tokens, output_tokens, stop_reason });
+    return call('PUT', '/api/build', { id, preset, text, model, input_tokens, output_tokens, stop_reason, edit: inputs.edit || undefined });
   },
   addLead: (name, email, phone) => call('POST', '/api/leads', { name, email, phone }),
+  undoEdit: (id) => call('PUT', '/api/build', { id, revert: true }),
   sendEmail: (id, to) => call('POST', '/api/send', { id, to }),
   sendInvoice: (id, to, plan) => call('POST', '/api/send', { id, to, plan, kind: 'invoice' }),
   diag: (niche, town, check) => call('POST', '/api/diag', { niche, town, check }),

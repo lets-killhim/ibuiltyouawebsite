@@ -138,6 +138,14 @@ export function SitePanel({ lead, settings, onLead, toast }) {
   const [chars, setChars] = useState(0);
   const [ask, setAsk] = useState(null); // {notes, palette, color} while the build popup is open
   const [mailTo, setMailTo] = useState(null); // the address being confirmed while the email popup is open
+  const [editText, setEditText] = useState('');
+  const sendEdit = async () => {
+    const edit = editText.trim();
+    if (!edit) return;
+    setEditText('');
+    await build({ edit });
+  };
+  const undo = async () => { try { onLead(await api.undoEdit(lead.id)); } catch (e) { toast('Could not undo: ' + e.message); } };
   const [sending, setSending] = useState(false);
   const mailRef = useRef(null);
   useEffect(() => {
@@ -270,9 +278,30 @@ export function SitePanel({ lead, settings, onLead, toast }) {
       {!building && !err && site.status === 'error' && <span className="small" style={{ color: 'var(--red)' }}>{site.error}</span>}
       {!building && !site.status && <span className="small muted">builds a one-page site from the photos and details above</span>}
       {full && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 70, background: '#F4F1EA' }}>
-          <iframe key={site.version} title="site" src={`${site.url}?v=${site.version}`} style={{ width: '100%', height: '100%', border: 0 }} />
-          <button onClick={() => setFull(false)} aria-label="Close" style={{ position: 'absolute', top: 20, right: 20, width: 44, height: 44, borderRadius: 999, border: '1px solid rgba(30,43,34,0.3)', background: 'rgba(244,241,234,0.95)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{I.xDark}</button>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 70, background: '#F4F1EA', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: '1 1 auto', position: 'relative', minHeight: 0 }}>
+            <iframe key={site.version} title="site" src={`${site.url}?v=${site.version}`} style={{ width: '100%', height: '100%', border: 0 }} />
+            {building && <div style={{ position: 'absolute', inset: 0, background: 'rgba(15,59,46,0.72)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, color: 'var(--bright)' }}><House /><span className="small" style={{ fontVariantNumeric: 'tabular-nums' }}>rewriting · {elapsed}{chars ? ` · ${Math.round(chars / 1000)}k written` : ''}</span></div>}
+            <button onClick={() => setFull(false)} aria-label="Close" style={{ position: 'absolute', top: 20, right: 20, width: 44, height: 44, borderRadius: 999, border: '1px solid rgba(30,43,34,0.3)', background: 'rgba(244,241,234,0.95)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{I.xDark}</button>
+          </div>
+          <div style={{ flex: '0 0 auto', background: 'var(--green)', color: 'var(--txt)', borderTop: '1px solid rgba(191,224,184,0.2)', padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '38vh' }}>
+            {(site.edits || []).length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, overflow: 'auto', fontSize: 13 }}>
+                {(site.edits || []).slice(-8).map((e, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
+                    <span style={{ background: 'var(--box)', borderRadius: 12, padding: '6px 12px', maxWidth: 720, color: e.text === '(undo)' ? 'var(--muted)' : 'var(--bright)' }}>{e.text === '(undo)' ? 'undid the last edit' : e.text}</span>
+                    {e.summary && <span className="small muted" style={{ flex: '1 1 auto', minWidth: 0 }}>{e.summary}</span>}
+                    <span className="small muted" style={{ whiteSpace: 'nowrap' }}>v{e.version}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <input className="input" value={editText} onChange={(e) => setEditText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !building) sendEdit(); }} disabled={building} placeholder={building ? 'working on it' : 'tell Claude what to change: "make the hero photo bigger", "swap the accent to deep green", "add a services line for tile work"'} style={{ flex: '1 1 auto', borderRadius: 999 }} />
+              <Pill small onClick={sendEdit} disabled={building || !editText.trim()}>Apply</Pill>
+              {(site.edits || []).length > 0 && !building && (site.edits || []).slice(-1)[0].text !== '(undo)' && <button className="btn-ghost" onClick={undo} style={{ height: 36 }}>undo last</button>}
+            </div>
+          </div>
         </div>
       )}
     </div>

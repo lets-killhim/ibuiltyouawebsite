@@ -52,6 +52,10 @@ export function systemFor(prompt, l, s, inputs) {
   return prompt.trimEnd() + '\n\n## CLIENT BRIEF\n\n' + filled + '\n';
 }
 
+export const EDIT_SYSTEM = `You are editing an existing one-page website for a small local business. You will be given the complete current HTML and one change request from the designer who built it.
+Apply exactly the change requested, keeping everything else (design, copy, structure, photos, scripts) as it is unless the change requires touching it. Never invent facts about the business. Keep the page self-contained and valid.
+Output the complete updated index.html inside one ` + "```html" + ` code block, then a single line starting with "Changed:" summarizing what you did. Nothing else.`;
+
 export const USER = 'Build the site for the CLIENT BRIEF above. Output in this order: the short design spec (name the direction letter), then the complete single-file index.html inside one ```html code block, then the short list titled "Missing from the brief". Nothing else. Write the code exactly once: do the self-critique in your head before the code block and never print a second or revised copy of the page.';
 
 
@@ -79,17 +83,28 @@ export async function onRequestPost({ request, env }) {
   const d = db(env);
   let leadId = null;
   try {
-    const { id, preset, notes = '', palette = '', color = '' } = await request.json();
+    const body = await request.json();
+    const { id, preset, notes = '', palette = '', color = '' } = body;
     leadId = id;
     const [l] = await d.select('leads', `id=eq.${id}`);
     if (!l) return bad('not found', 404);
     const s = withDefaults(await getSettings(env));
     if (!s.anthropic_key) return bad('Add your Claude API key in settings first');
     const inputs = { notes: String(notes).slice(0, 2000), palette: String(palette).slice(0, 200), color: /^#[0-9a-f]{6}$/i.test(color) ? color : '' };
+    const edit = String(body.edit || '').trim().slice(0, 4000);
     const presets = s.presets;
     const presetDef = presets.find((p) => p.name === preset) || presets[0];
     const model = s.claude_model || 'claude-fable-5-1';
-    await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'building', preset: presetDef.name, error: null, started_at: new Date().toISOString(), inputs } });
+    if (edit) {
+      // an edit: feed the current page back with the request, same token, next version
+      const prev = await d.select('sites', `lead_id=eq.${id}&select=html&order=version.desc&limit=1`);
+      if (!prev.length || !prev[0].html) return bad('Build the site first');
+      await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'building', error: null, started_at: new Date().toISOString(), editing: edit } });
+      const user = 'Current page:\n```html\n' + prev[0].html + '\n```\n\nChange requested: ' + edit;
+      const upstream = await startClaudeStream(s.anthropic_key, { model, effort: s.claude_edit_effort || 'low', system: EDIT_SYSTEM, user, max_tokens: 40000 });
+      return new Response(upstream.body, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store' } });
+    }
+    await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'building', preset: presetDef.name, error: null, started_at: new Date().toISOString(), inputs, editing: null } });
     const upstream = await startClaudeStream(s.anthropic_key, { model, effort: s.claude_effort || 'medium', system: systemFor(presetDef.prompt, l, s, inputs), user: USER });
     return new Response(upstream.body, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', 'X-Build-Preset': presetDef.name } });
   } catch (e) {
@@ -103,11 +118,21 @@ export async function onRequestPut({ request, env }) {
   const d = db(env);
   let leadId = null;
   try {
-    const { id, preset, text, model, input_tokens = 0, output_tokens = 0, stop_reason, error } = await request.json();
+    const { id, preset, text, model, input_tokens = 0, output_tokens = 0, stop_reason, error, edit, revert } = await request.json();
     leadId = id;
     const [l] = await d.select('leads', `id=eq.${id}`);
     if (!l) return bad('not found', 404);
     if (error) { await fail(d, id, error); const [u] = await d.select('leads', `id=eq.${id}`); return json(present(u)); }
+    if (revert) {
+      // undo the last edit: republish the version before it as a new version
+      const rows = await d.select('sites', `lead_id=eq.${id}&select=version,token,html,preset,model&order=version.desc&limit=2`);
+      if (rows.length < 2) return bad('Nothing to undo');
+      const back = rows[1], version = (rows[0].version || 0) + 1;
+      await d.insert('sites', [{ lead_id: id, token: rows[0].token, preset: back.preset, version, html: back.html, model: back.model, input_tokens: 0, output_tokens: 0 }]);
+      const edits = [...(l.site?.edits || []), { text: '(undo)', at: new Date().toISOString(), version }].slice(-30);
+      const [u] = await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'ready', version, edits, editing: null, built_at: new Date().toISOString(), error: null } });
+      return json(present(u));
+    }
     const html = extractHtml(text || '');
     const complete = /<html/i.test(html) && html.length > 500 && /<\/html>$/i.test(html);
     if (stop_reason === 'max_tokens' && !complete) {
@@ -126,7 +151,8 @@ export async function onRequestPut({ request, env }) {
     await d.insert('sites', [{ lead_id: id, token, preset, version, html, model, input_tokens, output_tokens }]);
     await logCost(env, `claude build (${model})`, input_tokens + output_tokens, buildCost(model, input_tokens, output_tokens));
     const url = `${new URL(request.url).origin}/s/${token}`;
-    const [u] = await d.update('leads', `id=eq.${id}`, { site: { status: 'ready', preset, token, url, version, model, direction, inputs: l.site?.inputs || null, built_at: new Date().toISOString(), error: null } });
+    const edits = edit ? [...(l.site?.edits || []), { text: edit, at: new Date().toISOString(), version, summary: (/^Changed:\s*(.+)$/im.exec(notes) || [])[1] || '' }].slice(-30) : (l.site?.edits || []);
+    const [u] = await d.update('leads', `id=eq.${id}`, { site: { status: 'ready', preset: edit ? (l.site?.preset || preset) : preset, token, url, version, model, direction: edit ? (l.site?.direction || direction) : direction, inputs: l.site?.inputs || null, sent: l.site?.sent || [], edits, editing: null, built_at: new Date().toISOString(), error: null } });
     return json(present(u));
   } catch (e) {
     await fail(d, leadId, e.message);
