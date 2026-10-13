@@ -21,7 +21,7 @@ export function brief(l, s, inputs = {}) {
     `license / insurance / certifications: ${na}`,
     `google_rating / review_count: ${l.rating != null ? l.rating : na} / ${l.reviews != null ? l.reviews : na}`,
     `testimonials: none supplied; omit the section`,
-    `menu / hours / specials: ${na}; never invent dishes, prices or hours`,
+    `menu / hours / specials: ${na}; follow the prompt's rules for missing information`,
     `photos:${photos.length ? '\n' + photos.join('\n') + '\n  no before/after pairs identified' : ' none supplied'}`,
     `existing_brand (logo, colors, fonts): ${l.logo ? 'logo: ' + l.logo : 'none'}`,
     `differentiators (what they actually do differently): ${na}`,

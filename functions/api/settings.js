@@ -22,10 +22,15 @@ const DEFAULTS = {
 };
 
 // Saved presets (current scheme) come first, then any default preset they don't have yet by name.
+// A saved copy of an earlier default (untouched by the user) is swapped for the current default.
+const hash = (t) => { let x = 5381; for (let i = 0; i < t.length; i++) x = ((x * 33) ^ t.charCodeAt(i)) >>> 0; return x.toString(36); };
+const SUPERSEDED = {"restaurant bold casual": "jhu8vr", "restaurant elegant minimal": "15ohplf", "restaurant hole in the wall": "1qx0lqr"};
 export const presetsOf = (data) => {
   const saved = data.presets_version === PRESETS_VERSION && Array.isArray(data.presets) ? data.presets : [];
-  const have = new Set(saved.map((p) => p.name));
-  return [...saved, ...DEFAULTS.presets.filter((p) => !have.has(p.name))];
+  const current = Object.fromEntries(DEFAULTS.presets.map((p) => [p.name, p]));
+  const merged = saved.map((p) => (current[p.name] && SUPERSEDED[p.name] === hash(p.prompt) ? current[p.name] : p));
+  const have = new Set(merged.map((p) => p.name));
+  return [...merged, ...DEFAULTS.presets.filter((p) => !have.has(p.name))];
 };
 
 // Settings exactly as the settings tab shows them: saved values over the defaults.
