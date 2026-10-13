@@ -3,6 +3,8 @@ import fs from 'node:fs';
 const read = (f) => fs.readFileSync(new URL(`../prompts/${f}`, import.meta.url), 'utf8').trim() + '\n';
 const presets = [
   ['remodel', 'remodel.md'],
+  ['remodel bold casual', 'remodel-bold.md'],
+  ['remodel elegant minimal', 'remodel-minimal.md'],
   ['restaurant bold casual', 'restaurant-bold.md'],
   ['restaurant elegant minimal', 'restaurant-minimal.md'],
   ['restaurant hole in the wall', 'restaurant-hole.md'],
