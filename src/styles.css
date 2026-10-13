@@ -79,6 +79,8 @@ select.input option { background: var(--cream); color: var(--green); font-weight
 .icon-btn { width: 36px; height: 36px; border-radius: 999px; border: 0; background: transparent; display: flex; align-items: center; justify-content: center; }
 .arrow { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 999px; border: 1px solid rgba(191,224,184,0.35); background: transparent; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 160ms, transform 200ms; }
 .row:hover .arrow, .arrow.open { opacity: 1; }
+.row.clickable { cursor: pointer; }
+.row.clickable:hover { background: linear-gradient(90deg, rgba(191,224,184,0.05), transparent); }
 .arrow.open { transform: rotate(180deg); }
 .drop { display: flex; flex-wrap: wrap; gap: 48px; padding: 8px 0 32px; animation: dropIn 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .tag { display: inline-flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--bright); }

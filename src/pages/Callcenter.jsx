@@ -185,7 +185,7 @@ function LeadRow({ lead: l, open, toggle, popup, setPopup, patch, trash, enrichi
 
   return (
     <div className={'rowwrap' + (popup ? ' z' : '')}>
-      <div className="row">
+      <div className="row clickable" onClick={(e) => { if (e.target.closest('button, a, input, select, textarea, .pop, .icon-btn')) return; toggle(); }}>
         <span className="name">{l.name}</span>
         <span className="cell" style={{ flex: '0 0 140px', color: 'var(--txt)', fontSize: 15 }}>{l.phone}</span>
         <span className="cell" style={{ flex: '0 0 100px' }}>{l.reviews} reviews</span>
