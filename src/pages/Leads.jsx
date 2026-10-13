@@ -45,6 +45,7 @@ function ClientRow({ lead: l, open, toggle, patch, settings, toast, refreshCount
   const [owner, setOwner] = useState(l.owner || '');
   const [dragging, setDragging] = useState(false);
   const [invoice, setInvoice] = useState(null);
+  const [showSubs, setShowSubs] = useState(false);
   const [sendingInv, setSendingInv] = useState(false);
   const lastInvoice = ((l.site || {}).sent || []).filter((x) => x.kind === 'invoice').slice(-1)[0];
   const sendInvoice = async () => {
@@ -137,7 +138,26 @@ function ClientRow({ lead: l, open, toggle, patch, settings, toast, refreshCount
                 </div>
               ))}
               <label className="field" style={{ fontSize: 13 }}>domain<input className="input" defaultValue={l.domain || ''} onBlur={(e) => patch(l.id, { domain: e.target.value })} placeholder="theirbusiness.com" /></label>
-              <label className="field" style={{ fontSize: 13 }}>contact form goes to<input className="input" defaultValue={l.form_email || ''} onBlur={(e) => patch(l.id, { form_email: e.target.value })} placeholder="their email for form submissions" /></label>
+              <label className="field" style={{ fontSize: 13 }}>contact form goes to<input className="input" defaultValue={l.form_email || ''} onBlur={(e) => patch(l.id, { form_email: e.target.value })} placeholder="their email; until set, submissions come to you" /></label>
+              <div className="small muted" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {site.form_token ? (
+                  <>
+                    <span>form is live: {(site.submissions || []).length ? `${site.submissions.length} submission${site.submissions.length === 1 ? '' : 's'}, last ${new Date(site.submissions[site.submissions.length - 1].at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : 'no submissions yet'}</span>
+                    <span style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      <button className="linkish" onClick={async () => { try { const r = await fetch(`/f/${site.form_token}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ name: 'Test from the app', phone: settings?.my_phone || '', email: settings?.my_email || '', message: 'If you got this, the form on the site works.' }) }); const d = await r.json(); toast(d.ok ? 'test sent' : 'test failed: ' + d.message); } catch (e) { toast('test failed: ' + e.message); } }}>send a test submission</button>
+                      {(site.submissions || []).length > 0 && <button className="linkish" onClick={() => setShowSubs((v) => !v)}>{showSubs ? 'hide' : 'show'} submissions</button>}
+                    </span>
+                    {showSubs && (site.submissions || []).slice().reverse().map((x, i) => (
+                      <div key={i} style={{ padding: '8px 10px', borderRadius: 8, background: 'var(--box)', color: 'var(--txt)' }}>
+                        <div className="small muted">{new Date(x.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</div>
+                        {Object.entries(x.fields).map(([k, v]) => <div key={k}><span className="muted">{k}: </span>{v}</div>)}
+                      </div>
+                    ))}
+                  </>
+                ) : site.url ? (
+                  <span>this site was built before forms were wired up · <button className="linkish" onClick={async () => { try { patchLocal(await api.activateForm(l.id)); toast('form activated'); } catch (e) { toast('Could not activate: ' + e.message); } }}>activate the form</button></span>
+                ) : <span>build the site and its form is live automatically</span>}
+              </div>
               <button className="btn-ghost" onClick={remove} style={{ alignSelf: 'flex-start' }}>back to callcenter</button>
             </div>
           </div>

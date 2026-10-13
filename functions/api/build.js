@@ -27,9 +27,9 @@ export function briefText(l, s, inputs = {}) {
     `differentiators (what they actually do differently): ${na}`,
     `phone / email / address: ${l.phone || na} / ${l.email || na} / ${l.address || na}`,
     `social: ${[l.facebook_url && 'Facebook ' + l.facebook_url, l.instagram_url && 'Instagram ' + l.instagram_url].filter(Boolean).join(', ') || 'none'}`,
-    `form_endpoint: ${s.form_endpoint || 'placeholder'}`,
-    `form_access_key: ${s.form_access_key || 'placeholder'}`,
-    `client_email: ${l.email || 'placeholder'}`,
+    `form_endpoint: ${inputs.form_endpoint || 'placeholder'}`,
+    `form_access_key: none needed; post plain FormData (or JSON) to form_endpoint with a fetch and Accept: application/json, and keep the no-JS <form method="post" action="form_endpoint"> fallback`,
+    `client_email: handled by the endpoint`,
     `direction: auto`,
     `previous_direction: ${l.site?.direction || 'none'}`,
   ];
@@ -112,6 +112,9 @@ export async function onRequestPost({ request, env }) {
     const s = withDefaults(await getSettings(env));
     if (!s.anthropic_key) return bad('Add your Claude API key in settings first');
     const inputs = { notes: String(notes).slice(0, 2000), palette: String(palette).slice(0, 200), color: /^#[0-9a-f]{6}$/i.test(color) ? color : '', components: Array.isArray(body.components) ? body.components.map(String).slice(0, 12) : [] };
+    // every lead gets a form endpoint on this app, live from the first build
+    if (!l.site?.form_token) l.site = { ...(l.site || {}), form_token: Math.random().toString(36).slice(2, 14) };
+    inputs.form_endpoint = `${new URL(request.url).origin}/f/${l.site.form_token}`;
     const edit = String(body.edit || '').trim().slice(0, 4000);
     const presets = s.presets;
     const presetDef = presets.find((p) => p.name === preset) || presets[0];
@@ -125,7 +128,7 @@ export async function onRequestPost({ request, env }) {
       const upstream = await startClaudeStream(s.anthropic_key, { model, effort: s.claude_edit_effort || 'low', system: EDIT_SYSTEM, user, max_tokens: 16000 });
       return new Response(upstream.body, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store' } });
     }
-    await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'building', preset: presetDef.name, error: null, started_at: new Date().toISOString(), inputs, editing: null } });
+    await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'building', preset: presetDef.name, error: null, started_at: new Date().toISOString(), inputs: { notes: inputs.notes, palette: inputs.palette, color: inputs.color, components: inputs.components }, editing: null } });
     const upstream = await startClaudeStream(s.anthropic_key, { model, effort: s.claude_effort || 'medium', system: systemFor(presetDef.prompt, l, s, inputs), user: USER });
     return new Response(upstream.body, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', 'X-Build-Preset': presetDef.name } });
   } catch (e) {
@@ -139,11 +142,25 @@ export async function onRequestPut({ request, env }) {
   const d = db(env);
   let leadId = null;
   try {
-    const { id, preset, text, model, input_tokens = 0, output_tokens = 0, cache_read = 0, cache_write = 0, stop_reason, error, edit, revert } = await request.json();
+    const { id, preset, text, model, input_tokens = 0, output_tokens = 0, cache_read = 0, cache_write = 0, stop_reason, error, edit, revert, activate_form } = await request.json();
     leadId = id;
     const [l] = await d.select('leads', `id=eq.${id}`);
     if (!l) return bad('not found', 404);
     if (error) { await fail(d, id, error); const [u] = await d.select('leads', `id=eq.${id}`); return json(present(u)); }
+    if (activate_form) {
+      // point an older site's form at this app's endpoint, as a new version at the same link
+      const rows = await d.select('sites', `lead_id=eq.${id}&select=version,token,html,preset,model&order=version.desc&limit=1`);
+      if (!rows.length) return bad('Build the site first');
+      const form_token = l.site?.form_token || Math.random().toString(36).slice(2, 14);
+      const endpoint = `${new URL(request.url).origin}/f/${form_token}`;
+      let html = rows[0].html;
+      html = html.replace(/\{\{form_endpoint\}\}|https:\/\/api\.web3forms\.com\/submit|(endpoint|formEndpoint)(\s*:\s*)"(placeholder|)"/g, (m, k, sep) => (k ? `${k}${sep}"${endpoint}"` : endpoint));
+      html = html.replace(/action="(#|placeholder|\{\{form_endpoint\}\})"/g, `action="${endpoint}"`);
+      const version = (rows[0].version || 0) + 1;
+      await d.insert('sites', [{ lead_id: id, token: rows[0].token, preset: rows[0].preset, version, html, model: rows[0].model, input_tokens: 0, output_tokens: 0 }]);
+      const [u] = await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), form_token, version, status: 'ready', built_at: new Date().toISOString() } });
+      return json(present(u));
+    }
     if (revert) {
       // undo the last edit: republish the version before it as a new version
       const rows = await d.select('sites', `lead_id=eq.${id}&select=version,token,html,preset,model&order=version.desc&limit=2`);
@@ -184,7 +201,7 @@ export async function onRequestPut({ request, env }) {
     await logCost(env, `claude ${edit ? 'edit' : 'build'} (${model})`, input_tokens + cache_read + cache_write + output_tokens, buildCost(model, input_tokens, output_tokens, cache_read, cache_write));
     const url = `${new URL(request.url).origin}/s/${token}`;
     const edits = edit ? [...(l.site?.edits || []), { text: edit, at: new Date().toISOString(), version, summary: (/^Changed:\s*(.+)$/im.exec(notes) || [])[1] || '' }].slice(-30) : (l.site?.edits || []);
-    const [u] = await d.update('leads', `id=eq.${id}`, { site: { status: 'ready', preset: edit ? (l.site?.preset || preset) : preset, token, url, version, model, direction: edit ? (l.site?.direction || direction) : direction, inputs: l.site?.inputs || null, sent: l.site?.sent || [], edits, editing: null, built_at: new Date().toISOString(), error: null } });
+    const [u] = await d.update('leads', `id=eq.${id}`, { site: { status: 'ready', preset: edit ? (l.site?.preset || preset) : preset, token, url, version, model, direction: edit ? (l.site?.direction || direction) : direction, inputs: l.site?.inputs || null, sent: l.site?.sent || [], form_token: l.site?.form_token || null, book_token: l.site?.book_token || null, submissions: l.site?.submissions || [], edits, editing: null, built_at: new Date().toISOString(), error: null } });
     return json(present(u));
   } catch (e) {
     await fail(d, leadId, e.message);

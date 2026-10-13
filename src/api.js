@@ -65,6 +65,7 @@ export const api = {
     return call('PUT', '/api/build', { id, preset, text, model, input_tokens, output_tokens, cache_read, cache_write, stop_reason, edit: inputs.edit || undefined });
   },
   addLead: (name, email, phone) => call('POST', '/api/leads', { name, email, phone }),
+  activateForm: (id) => call('PUT', '/api/build', { id, activate_form: true }),
   undoEdit: (id) => call('PUT', '/api/build', { id, revert: true }),
   sendEmail: (id, to) => call('POST', '/api/send', { id, to }),
   sendInvoice: (id, to, plan) => call('POST', '/api/send', { id, to, plan, kind: 'invoice' }),
