@@ -25,6 +25,40 @@ const EFFORTS = [
   ['high', 'high: thinks a lot, roughly double the cost and time'],
 ];
 
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const h12 = (h) => `${h % 12 || 12} ${h < 12 || h === 24 ? 'AM' : 'PM'}`;
+
+// A week strip: click a day, set its hours (or none), tick to save, move to the next.
+function WeekEditor({ week, onSave }) {
+  const w = week && typeof week === 'object' ? week : {};
+  const [day, setDay] = useState(null);
+  const [draft, setDraft] = useState(null); // { on, start, end }
+  const pick = (i) => { const cur = w[i]; setDay(i); setDraft({ on: !!cur, start: cur ? cur.start : 9, end: cur ? cur.end : 17 }); };
+  const commit = () => { const next = { ...w, [day]: draft.on && draft.end > draft.start ? { start: draft.start, end: draft.end } : null }; onSave(next); setDay(null); setDraft(null); };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {DAYS.map((dn, i) => { const cur = w[i]; const sel = day === i; return (
+          <button key={dn} onClick={() => pick(i)} title={cur ? `${h12(cur.start)} to ${h12(cur.end)}` : 'not available'} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: 64, borderRadius: 12, padding: '8px 10px', border: '1px solid ' + (sel ? 'var(--bright)' : cur ? 'var(--sage)' : 'var(--line)'), background: cur ? 'var(--sage)' : 'transparent', color: cur ? 'var(--green)' : 'var(--muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            {dn}<span style={{ fontSize: 10, fontWeight: 400, opacity: 0.85 }}>{cur ? `${cur.start % 12 || 12}–${cur.end % 12 || 12}` : 'off'}</span>
+          </button>); })}
+      </div>
+      {draft && (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', padding: 12, borderRadius: 12, background: 'var(--box)' }}>
+          <span style={{ alignSelf: 'center', fontSize: 13, color: 'var(--bright)', minWidth: 36 }}>{DAYS[day]}</span>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, alignSelf: 'center' }}><input type="checkbox" checked={draft.on} onChange={(e) => setDraft({ ...draft, on: e.target.checked })} /> available</label>
+          {draft.on && (<>
+            <label className="field" style={{ fontSize: 13 }}>from<select className="input" value={draft.start} onChange={(e) => setDraft({ ...draft, start: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{h12(h)}</option>)}</select></label>
+            <label className="field" style={{ fontSize: 13 }}>to<select className="input" value={draft.end} onChange={(e) => setDraft({ ...draft, end: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, h) => <option key={h + 1} value={h + 1}>{h12(h + 1)}</option>)}</select></label>
+          </>)}
+          <button className="icon-btn" aria-label="Save day" onClick={commit} disabled={draft.on && draft.end <= draft.start} style={{ background: 'var(--sage)', color: 'var(--green)' }}>{I.check}</button>
+          <button className="btn-ghost" onClick={() => { setDay(null); setDraft(null); }}>cancel</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Settings({ settings, onSaved, toast }) {
   const [s, setS] = useState(settings || {});
   const [keys, setKeys] = useState({});
@@ -91,19 +125,13 @@ export default function Settings({ settings, onSaved, toast }) {
 
           <div className="col" style={{ borderTop: '1px solid var(--line)', paddingTop: 16, gap: 12 }}>
             <span className="sect">booking link</span>
-            <span className="small muted">{'{book_link}'} in any message opens a page where they pick a slot from this availability; it lands on your calendar as a confirmed meeting</span>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((dn, i) => { const on = (s.book_days || []).map(Number).includes(i); return <button key={dn} onClick={() => save({ book_days: on ? (s.book_days || []).filter((x) => Number(x) !== i) : [...(s.book_days || []), i].sort() })} style={{ borderRadius: 999, padding: '6px 12px', border: '1px solid ' + (on ? 'var(--sage)' : 'var(--line)'), background: on ? 'var(--sage)' : 'transparent', color: on ? 'var(--green)' : 'var(--txt)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{dn}</button>; })}
-            </div>
+            <span className="small muted">{'{book_link}'} in any message opens a page where they pick a slot from this week's hours; it lands on your calendar as a confirmed meeting</span>
+            <WeekEditor week={s.book_week} onSave={(week) => save({ book_week: week })} />
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <label className="field" style={{ fontSize: 13, flex: '1 1 120px' }}>from<select className="input" value={s.book_start ?? 9} onChange={(e) => save({ book_start: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{h % 12 || 12} {h < 12 ? 'AM' : 'PM'}</option>)}</select></label>
-              <label className="field" style={{ fontSize: 13, flex: '1 1 120px' }}>to<select className="input" value={s.book_end ?? 17} onChange={(e) => save({ book_end: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h + 1}>{(h + 1) % 12 || 12} {h + 1 < 12 || h + 1 === 24 ? 'AM' : 'PM'}</option>)}</select></label>
-              <label className="field" style={{ fontSize: 13, flex: '1 1 120px' }}>slot<select className="input" value={s.book_slot ?? 30} onChange={(e) => save({ book_slot: Number(e.target.value) })}>{[15, 20, 30, 45, 60].map((m) => <option key={m} value={m}>{m} min</option>)}</select></label>
-            </div>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <label className="field" style={{ fontSize: 13, flex: '1 1 140px' }}>days ahead<select className="input" value={s.book_ahead ?? 14} onChange={(e) => save({ book_ahead: Number(e.target.value) })}>{[7, 14, 21, 30].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
-              <label className="field" style={{ fontSize: 13, flex: '1 1 140px' }}>notice<select className="input" value={s.book_buffer_hours ?? 2} onChange={(e) => save({ book_buffer_hours: Number(e.target.value) })}>{[0, 1, 2, 4, 24].map((n) => <option key={n} value={n}>{n === 0 ? 'none' : n + ' h'}</option>)}</select></label>
-              <label className="field" style={{ fontSize: 13, flex: '1 1 200px' }}>time zone<select className="input" value={s.book_tz || 'America/Los_Angeles'} onChange={(e) => save({ book_tz: e.target.value })}>{['America/Los_Angeles', 'America/Denver', 'America/Phoenix', 'America/Chicago', 'America/New_York', 'Pacific/Honolulu', 'America/Anchorage'].map((z) => <option key={z} value={z}>{z.split('/')[1].replace('_', ' ')}</option>)}</select></label>
+              <label className="field" style={{ fontSize: 13, flex: '1 1 100px' }}>slot<select className="input" value={s.book_slot ?? 30} onChange={(e) => save({ book_slot: Number(e.target.value) })}>{[15, 20, 30, 45, 60].map((m) => <option key={m} value={m}>{m} min</option>)}</select></label>
+              <label className="field" style={{ fontSize: 13, flex: '1 1 100px' }}>days ahead<select className="input" value={s.book_ahead ?? 30} onChange={(e) => save({ book_ahead: Number(e.target.value) })}>{[14, 30, 45, 60].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
+              <label className="field" style={{ fontSize: 13, flex: '1 1 100px' }}>notice<select className="input" value={s.book_buffer_hours ?? 2} onChange={(e) => save({ book_buffer_hours: Number(e.target.value) })}>{[0, 1, 2, 4, 24].map((n) => <option key={n} value={n}>{n === 0 ? 'none' : n + ' h'}</option>)}</select></label>
+              <label className="field" style={{ fontSize: 13, flex: '1 1 160px' }}>time zone<select className="input" value={s.book_tz || 'America/Los_Angeles'} onChange={(e) => save({ book_tz: e.target.value })}>{['America/Los_Angeles', 'America/Denver', 'America/Phoenix', 'America/Chicago', 'America/New_York', 'Pacific/Honolulu', 'America/Anchorage'].map((z) => <option key={z} value={z}>{z.split('/')[1].replace('_', ' ')}</option>)}</select></label>
             </div>
           </div>
 

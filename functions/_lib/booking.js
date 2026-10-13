@@ -1,12 +1,18 @@
 // Availability from settings → bookable slots, minus slots already taken by meetings. Times live in the
 // business's time zone (settings.book_tz); meeting.time is stored like "9:30 AM" to match the app.
-const DEFAULTS = { book_days: [1, 2, 3, 4, 5], book_start: 9, book_end: 17, book_slot: 30, book_ahead: 14, book_tz: 'America/Los_Angeles', book_buffer_hours: 2 };
+const DEFAULTS = { book_slot: 30, book_ahead: 30, book_tz: 'America/Los_Angeles', book_buffer_hours: 2 };
+// book_week: { '0': null, '1': { start: 9, end: 17 }, ... } keyed by weekday (0 = Sunday); null = not available
+const WEEK_DEFAULT = { 0: null, 1: { start: 9, end: 17 }, 2: { start: 9, end: 17 }, 3: { start: 9, end: 17 }, 4: { start: 9, end: 17 }, 5: { start: 9, end: 17 }, 6: null };
 
 export function bookingConfig(s) {
   const c = { ...DEFAULTS };
   for (const k of Object.keys(DEFAULTS)) if (s[k] !== undefined && s[k] !== null && s[k] !== '') c[k] = s[k];
-  c.book_days = (Array.isArray(c.book_days) ? c.book_days : DEFAULTS.book_days).map(Number);
-  c.book_start = Number(c.book_start); c.book_end = Number(c.book_end); c.book_slot = Number(c.book_slot) || 30; c.book_ahead = Number(c.book_ahead) || 14; c.book_buffer_hours = Number(c.book_buffer_hours) || 0;
+  c.book_slot = Number(c.book_slot) || 30; c.book_ahead = Number(c.book_ahead) || 30; c.book_buffer_hours = Number(c.book_buffer_hours) || 0;
+  let week = s.book_week && typeof s.book_week === 'object' ? s.book_week : null;
+  if (!week && Array.isArray(s.book_days)) { // older single-range settings
+    week = {}; for (let i = 0; i < 7; i++) week[i] = s.book_days.map(Number).includes(i) ? { start: Number(s.book_start ?? 9), end: Number(s.book_end ?? 17) } : null;
+  }
+  c.week = {}; for (let i = 0; i < 7; i++) { const w = (week || WEEK_DEFAULT)[i]; c.week[i] = w && Number(w.end) > Number(w.start) ? { start: Number(w.start), end: Number(w.end) } : null; }
   return c;
 }
 
@@ -25,11 +31,11 @@ export function slotsFor(c, taken = new Set()) {
   const out = [];
   for (let i = 0; i < c.book_ahead; i++) {
     const d = new Date(Date.UTC(now.y, now.m - 1, now.d + i, 12));
-    const dow = d.getUTCDay();
-    if (!c.book_days.includes(dow)) continue;
+    const hours = c.week[d.getUTCDay()];
+    if (!hours) continue;
     const date = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
     const times = [];
-    for (let t = c.book_start * 60; t + c.book_slot <= c.book_end * 60; t += c.book_slot) {
+    for (let t = hours.start * 60; t + c.book_slot <= hours.end * 60; t += c.book_slot) {
       if (i === 0 && t < earliest) continue;
       const label = fmt12(t);
       if (!taken.has(`${date} ${label}`)) times.push(label);
@@ -38,5 +44,7 @@ export function slotsFor(c, taken = new Set()) {
   }
   return out;
 }
+
+export function todayIn(tz) { const n = nowIn(tz); return `${n.y}-${pad(n.m)}-${pad(n.d)}`; }
 
 export const tzLabel = (tz) => { try { return new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'short' }).formatToParts(new Date()).find((p) => p.type === 'timeZoneName').value; } catch { return tz; } };

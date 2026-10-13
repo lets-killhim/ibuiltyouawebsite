@@ -10,7 +10,7 @@ const DEFAULTS = {
   plans: [],
   claude_model: 'claude-fable-5-1',
   claude_effort: 'medium',
-  book_days: [1, 2, 3, 4, 5], book_start: 9, book_end: 17, book_slot: 30, book_ahead: 14, book_tz: 'America/Los_Angeles', book_buffer_hours: 2,
+  book_week: { 0: null, 1: { start: 9, end: 17 }, 2: { start: 9, end: 17 }, 3: { start: 9, end: 17 }, 4: { start: 9, end: 17 }, 5: { start: 9, end: 17 }, 6: null }, book_slot: 30, book_ahead: 30, book_tz: 'America/Los_Angeles', book_buffer_hours: 2,
   tpl_text: "Hey {owner}, it's {me} from the call just now. Here's the site I built for {business}: {link}. Take a look and I'll make any changes you want.",
   tpl_email_subject: 'Your new {business} website',
   tpl_email: "Hi {owner},\n\nGood talking with you. Here's the website I put together for {business}: {link}\n\nEverything on it came from your Google listing and photos, so tell me what to change. If you'd rather walk through it on a call, grab a time that works for you here: {book_link}\n\n{me}\n{my_phone}",
