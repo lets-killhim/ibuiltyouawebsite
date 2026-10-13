@@ -272,7 +272,6 @@ export function SitePanel({ lead, settings, onLead, toast }) {
           <a href={site.url} target="_blank" rel="noreferrer" style={{ color: 'var(--bright)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{site.url.replace(/^https?:\/\//, '')}</a>
           <button className="btn-ghost" onClick={copy} style={{ height: 32, padding: '0 12px', flexShrink: 0 }}>copy</button>
         </div>
-        {site.built_at && <span className="small muted">built {new Date(site.built_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}{site.version > 1 ? `, version ${site.version}` : ''}</span>}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>
           <span>send the link:</span>
           {smsHref ? <a className="ring lg" href={smsHref} onClick={ensureBook} aria-label="Text the link">{I.msg}</a> : <span className="ring lg off" aria-label="No phone">{I.msg}</span>}

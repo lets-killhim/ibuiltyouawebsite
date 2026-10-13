@@ -2,7 +2,7 @@ import { db, json, bad, getSettings, logCost } from '../_lib/db.js';
 import { os, flatten } from '../_lib/outscraper.js';
 import { toLead, hasSite } from '../_lib/leads.js';
 
-const FIELDS = 'place_id,google_id,name,phone,website,site,address,full_address,city,state,state_code,postal_code,latitude,longitude,rating,reviews,type,category,subtypes,owner_title,photos_count,verified,location_link,photo,logo,business_status';
+const FIELDS = 'place_id,google_id,name,phone,website,site,address,full_address,city,state,state_code,postal_code,latitude,longitude,rating,reviews,type,category,subtypes,owner_title,photos_count,verified,location_link,photo,logo,business_status,description';
 const USD_PER_ROW = 0.003;
 const RADIUS_KM = 40;          // keep results within ~25 miles of each town's center
 const PER_TOWN = { quick: 150, thorough: 400 };   // results asked for per town; Google caps one search at 400

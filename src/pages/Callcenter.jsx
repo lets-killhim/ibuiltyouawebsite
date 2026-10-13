@@ -238,14 +238,9 @@ function LeadRow({ lead: l, open, toggle, popup, setPopup, patch, trash, enrichi
               <span className="muted">{l.rating ? `${l.rating} stars, ` : ''}{l.reviews} reviews{l.category ? `, ${l.category}` : ''}</span>
               {l.enrich_error && <span className="small" style={{ color: 'var(--red)' }}>{l.enrich_error}</span>}
             </div>
-            <div className="muted" style={{ display: 'flex', flexDirection: 'column', gap: 4, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
-              <span>Google, from the listing</span>
-              <span>Facebook, {l.matches?.facebook || (l.enriched_at ? 'not found' : 'not checked yet')}</span>
-              <span>Instagram, {l.matches?.instagram || (l.enriched_at ? 'not found' : 'not checked yet')}</span>
-            </div>
+            {l.blurb && <p className="muted" style={{ margin: 0, borderTop: '1px solid var(--line)', paddingTop: 12, fontSize: 13, lineHeight: 1.5 }}>{l.blurb}</p>}
           </div>
           <div className="drop-photos" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <span className="small muted">{l.photos?.length || 0} photos of their work{l.photos?.length ? ', from their Google listing' : l.enriched_at ? '' : ', still loading'}</span>
             <div className="photo-panel">
               <div className={'photos' + ((l.photos || []).length > 12 ? ' scroll' : '')} ref={wheelScroll}>
                 {(l.photos || []).map((p, i) => <img key={i} src={p.src} alt="" loading="lazy" style={{ cursor: 'zoom-in' }} onClick={() => setBox({ photos: l.photos, index: i })} />)}
