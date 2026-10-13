@@ -14,6 +14,17 @@
   --paper: #F4F1EA;
   --ink: #1E2B22;
 }
+/* palettes, down the rainbow; the tan stays the same in every one */
+:root[data-theme="red"]    { --green: #3B0F14; --sage: #D9A3A3; --txt: #E8BFC1; --bright: #F6DCDC; --muted: #B88A8E; --line: rgba(232,191,193,0.22); --rule: rgba(232,191,193,0.42); --box: rgba(232,191,193,0.12); }
+:root[data-theme="orange"] { --green: #3E1F0A; --sage: #E0B38C; --txt: #EBC9A8; --bright: #F7E3CF; --muted: #B99272; --line: rgba(235,201,168,0.22); --rule: rgba(235,201,168,0.42); --box: rgba(235,201,168,0.12); }
+:root[data-theme="yellow"] { --green: #3A350C; --sage: #D8CC8A; --txt: #E6DDA6; --bright: #F5F0CF; --muted: #B3AA73; --line: rgba(230,221,166,0.22); --rule: rgba(230,221,166,0.42); --box: rgba(230,221,166,0.12); }
+:root[data-theme="blue"]   { --green: #0F2A3B; --sage: #A3C3D9; --txt: #BFD8E8; --bright: #DCEBF6; --muted: #8AA8B8; --line: rgba(191,216,232,0.22); --rule: rgba(191,216,232,0.42); --box: rgba(191,216,232,0.12); }
+:root[data-theme="indigo"] { --green: #171A3B; --sage: #AEB0DB; --txt: #C4C6EA; --bright: #DEDFF6; --muted: #9093BE; --line: rgba(196,198,234,0.22); --rule: rgba(196,198,234,0.42); --box: rgba(196,198,234,0.12); }
+:root[data-theme="violet"] { --green: #2E0F3B; --sage: #C8A6D9; --txt: #DBBFE8; --bright: #EEDCF6; --muted: #AD8FB8; --line: rgba(219,191,232,0.22); --rule: rgba(219,191,232,0.42); --box: rgba(219,191,232,0.12); }
+.swatches { position: fixed; right: 20px; bottom: 20px; display: flex; gap: 8px; z-index: 5; }
+.swatches button { width: 16px; height: 16px; border-radius: 3px; border: 1.5px solid var(--cream); padding: 0; cursor: pointer; opacity: 0.85; transition: transform 120ms, opacity 120ms; }
+.swatches button:hover { opacity: 1; transform: translateY(-1px); }
+.swatches button.on { outline: 2px solid var(--cream); outline-offset: 2px; opacity: 1; }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--green); color: var(--txt); font-family: 'Instrument Sans', 'Helvetica Neue', Arial, sans-serif; }
 a { color: var(--txt); text-decoration: none; }

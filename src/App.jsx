@@ -64,11 +64,26 @@ function Login({ onDone, toast }) {
   );
 }
 
+// Seven palettes down the rainbow. Picked on the home page, remembered in this browser.
+const THEMES = [['red', '#3B0F14'], ['orange', '#3E1F0A'], ['yellow', '#3A350C'], ['green', '#0F3B2E'], ['blue', '#0F2A3B'], ['indigo', '#171A3B'], ['violet', '#2E0F3B']];
+export function applyTheme(name) {
+  if (name && name !== 'green') document.documentElement.setAttribute('data-theme', name); else document.documentElement.removeAttribute('data-theme');
+  try { localStorage.setItem('theme', name || 'green'); } catch { /* private mode */ }
+}
+function Swatches() {
+  const [cur, setCur] = useState(() => { try { return localStorage.getItem('theme') || 'green'; } catch { return 'green'; } });
+  return (
+    <div className="swatches" aria-label="Color palette">
+      {THEMES.map(([name, color]) => <button key={name} className={cur === name ? 'on' : ''} style={{ background: color }} aria-label={name} title={name} onClick={() => { applyTheme(name); setCur(name); }} />)}
+    </div>
+  );
+}
+
 function Home({ summary, go }) {
   return (
     <div className="page" style={{ minHeight: 'calc(100vh - 76px)' }}>
       <div className="home-top">
-        <svg width="56" height="56" viewBox="0 0 56 56" fill="#BFE0B8" aria-hidden="true"><circle cx="28" cy="12" r="7" /><circle cx="28" cy="44" r="7" /><circle cx="12" cy="28" r="7" /><circle cx="44" cy="28" r="7" /><circle cx="16.7" cy="16.7" r="7" /><circle cx="39.3" cy="39.3" r="7" /><circle cx="16.7" cy="39.3" r="7" /><circle cx="39.3" cy="16.7" r="7" /><circle cx="28" cy="28" r="6" fill="#0F3B2E" /></svg>
+        <svg width="56" height="56" viewBox="0 0 56 56" fill="var(--txt)" aria-hidden="true"><circle cx="28" cy="12" r="7" /><circle cx="28" cy="44" r="7" /><circle cx="12" cy="28" r="7" /><circle cx="44" cy="28" r="7" /><circle cx="16.7" cy="16.7" r="7" /><circle cx="39.3" cy="39.3" r="7" /><circle cx="16.7" cy="39.3" r="7" /><circle cx="39.3" cy="16.7" r="7" /><circle cx="28" cy="28" r="6" fill="var(--green)" /></svg>
         <div className="home-nums label">
           <button onClick={() => go('callcenter')}>{summary.to_call || 0} to call</button>
           <button onClick={() => go('leads')}>{summary.clients || 0} clients</button>
@@ -76,6 +91,7 @@ function Home({ summary, go }) {
         </div>
       </div>
       <div className="wordmark">ibuiltyou<em>awebsite</em></div>
+      <Swatches />
     </div>
   );
 }
