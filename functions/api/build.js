@@ -65,6 +65,16 @@ export function systemFor(prompt, l, s, inputs) {
   return blocks;
 }
 
+const EDIT_SYSTEM = `You are editing an existing one-page website for a small local business. You will be given the complete current HTML and one change request from the designer who built it.
+Make exactly the change requested and nothing else. Never invent facts about the business.
+Reply ONLY with one or more patch blocks, each in this exact format:
+<<<<<<< SEARCH
+(a verbatim excerpt of the current file: the smallest run of whole lines that must change, copied character for character, and unique in the file)
+=======
+(the replacement for that excerpt)
+>>>>>>> REPLACE
+Rules: copy SEARCH text exactly as it appears, including indentation; keep each SEARCH under 40 lines; to add something, SEARCH for the lines it goes next to and include them unchanged in the replacement; never output the whole file; no commentary between blocks. After the last block, one line starting with "Changed:" summarizing what you did.`;
+
 export const USER = 'Build the site for the CLIENT BRIEF above. Output in this order: the short design spec (name the direction letter), then the complete single-file index.html inside one ```html code block, then the short list titled "Missing from the brief". Nothing else. Write the code exactly once: do the self-critique in your head before the code block and never print a second or revised copy of the page.';
 
 
