@@ -224,7 +224,7 @@ function LeadRow({ lead: l, open, toggle, popup, setPopup, patch, trash, enrichi
           <div className="drop-info" style={{ flex: '0 1 300px', display: 'flex', flexDirection: 'column', gap: 16, fontSize: 14, lineHeight: 1.55 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <span>{l.address}</span>
-              <span className="muted">{l.rating ? `${l.rating} stars, ` : ''}{l.reviews} reviews{l.category ? `, ${l.category}` : ''}</span>
+              <span className="muted">{l.rating ? <><span style={{ color: 'var(--sage)' }}>★</span> {l.rating}, </> : null}{l.reviews} reviews{l.category ? `, ${l.category}` : ''}</span>
               {l.enrich_error && <span className="small" style={{ color: 'var(--red)' }}>{l.enrich_error}</span>}
             </div>
             {l.blurb && <p className="muted" style={{ margin: 0, borderTop: '1px solid var(--line)', paddingTop: 12, fontSize: 13, lineHeight: 1.5 }}>{l.blurb}</p>}
