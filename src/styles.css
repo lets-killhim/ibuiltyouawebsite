@@ -86,7 +86,8 @@ select.input option { background: var(--cream); color: var(--green); font-weight
 .photo-panel { background: var(--cream); border-radius: 10px; padding: 6px; }
 .photos { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 6px; }
 /* more than twelve: two rows that scroll sideways, every photo reachable */
-.photos.scroll { grid-auto-flow: column; grid-template-rows: repeat(2, minmax(0, 1fr)); grid-template-columns: none; grid-auto-columns: calc((100% - 30px) / 6); overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; padding-bottom: 4px; scrollbar-width: thin; scrollbar-color: rgba(15,59,46,0.35) transparent; }
+.photos.scroll { grid-auto-flow: column; grid-template-rows: repeat(2, minmax(0, 1fr)); grid-template-columns: none; grid-auto-columns: calc((100% - 30px) / 6); overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; -ms-overflow-style: none; }
+.photos.scroll::-webkit-scrollbar { display: none; }
 .photos.scroll img { scroll-snap-align: start; }
 .drop-photos { flex: 1 1 360px; min-width: 0; }
 .photos img, .photos .ph { aspect-ratio: 4 / 3; width: 100%; object-fit: cover; background: var(--box); border-radius: 5px; display: block; }
