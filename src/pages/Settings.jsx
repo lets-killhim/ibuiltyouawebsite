@@ -92,6 +92,8 @@ export default function Settings({ settings, onSaved, toast }) {
   const [check, setCheck] = useState('');
   const [tl, setTl] = useState({ name: 'TitanCorp', email: '', phone: '' });
   const uploadAgreement = async (f) => { if (!f) return; try { const u = await api.upload('agreement', f); save({ agreement_file: { url: u.url, name: f.name } }); toast('agreement uploaded'); } catch (e) { toast('Upload failed: ' + e.message); } };
+  const [comp, setComp] = useState({ name: '', kind: 'hero', notes: '', code: '' });
+  const addComp = () => { const name = comp.name.trim(); if (!name || !comp.code.trim()) return; if ((s.components || []).some((c) => c.name === name)) { toast('a component with that name exists'); return; } save({ components: [...(s.components || []), { name, kind: comp.kind, notes: comp.notes.trim(), code: comp.code }] }); setComp({ name: '', kind: 'hero', notes: '', code: '' }); toast('added'); };
   const addTest = async () => { try { await api.addLead(tl.name, tl.email, tl.phone); toast(`${tl.name} added to the callcenter`); } catch (e) { toast('Could not add: ' + e.message); } };
   const runDiag = async () => { setDiagBusy(true); setDiag(null); try { setDiag(await api.diag(s.last_niche || 'pool builders', (s.last_where || 'Scottsdale AZ').split(',')[0].trim(), check.trim() || undefined)); } catch (e) { setDiag({ error: e.message }); } setDiagBusy(false); };
   const T = (k, label, rows) => (
@@ -186,6 +188,25 @@ export default function Settings({ settings, onSaved, toast }) {
           <span className="small muted">fields in braces fill in from the lead: {'{business} {owner} {phone} {link} {book_link} {plan} {pay_link} {meet_link} {date} {time} {me} {my_phone} {my_email}'}</span>
         </div>
       </div>
+      <div className="col" style={{ borderTop: '1px solid var(--line)', paddingTop: 24, gap: 12 }}>
+        <span className="sect">component library</span>
+        <span className="small muted">paste finished pieces (a hero, a button set, a nav, a gallery, an animation). When you build a site you pick which ones to hand the designer; it copies them in and adapts colors and copy. Each attached component adds roughly its length in tokens to that build</span>
+        {(s.components || []).length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {(s.components || []).map((c, i) => (
+              <div key={c.name} className="plan"><span style={{ color: 'var(--bright)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}<span className="small muted"> · {c.kind || 'other'} · ~{Math.round((c.code || '').length / 4)} tokens</span></span><button className="icon-btn" aria-label="Remove component" onClick={() => save({ components: (s.components || []).filter((_, j) => j !== i) })} style={{ width: 32, height: 32 }}>{I.x}</button></div>
+            ))}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input className="input" value={comp.name} onChange={(e) => setComp({ ...comp, name: e.target.value })} placeholder="name, e.g. split hero with wipe" style={{ flex: '1 1 220px' }} />
+          <select className="input" value={comp.kind} onChange={(e) => setComp({ ...comp, kind: e.target.value })} style={{ flex: '0 0 150px' }}>{['hero', 'nav', 'buttons', 'section', 'gallery', 'form', 'footer', 'animation', 'other'].map((k) => <option key={k} value={k}>{k}</option>)}</select>
+          <input className="input" value={comp.notes} onChange={(e) => setComp({ ...comp, notes: e.target.value })} placeholder="one line on when to use it (optional)" style={{ flex: '2 1 260px' }} />
+        </div>
+        <textarea className="input" rows={8} value={comp.code} onChange={(e) => setComp({ ...comp, code: e.target.value })} placeholder="paste the HTML / CSS / JS for the component" style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 12, lineHeight: 1.45 }} />
+        <button className={'btn-sage' + (comp.name.trim() && comp.code.trim() ? '' : ' off')} onClick={addComp} style={{ alignSelf: 'flex-start' }}>add to library</button>
+      </div>
+
       <div className="col" style={{ borderTop: '1px solid var(--line)', paddingTop: 24 }}>
         <span className="sect">diagnostics</span>
         <span className="small muted">runs one tiny live scan (3 businesses, a few photos, one search) and shows exactly what Outscraper sends back. Costs under a cent. Copy the output and paste it to Claude when something looks wrong.</span>

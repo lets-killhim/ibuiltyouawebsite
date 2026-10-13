@@ -1,13 +1,14 @@
 import { db, json, bad, getSettings } from '../_lib/db.js';
 import { REMODEL_PROMPT } from '../_lib/remodel-prompt.js';
-import { RESTAURANT_BOLD, RESTAURANT_MINIMAL } from '../_lib/restaurant-prompts.js';
+import { RESTAURANT_BOLD, RESTAURANT_MINIMAL, RESTAURANT_HOLE } from '../_lib/restaurant-prompts.js';
 
 // Presets saved before this version are the old four and are dropped; edits saved from now on carry the version.
 const PRESETS_VERSION = 3;
 
 const SECRET = ['outscraper_key', 'anthropic_key', 'resend_key', 'twilio_sid', 'twilio_token', 'cloudflare_token', 'stripe_key'];
 const DEFAULTS = {
-  presets: [{ name: 'remodel', prompt: REMODEL_PROMPT }, { name: 'restaurant bold casual', prompt: RESTAURANT_BOLD }, { name: 'restaurant elegant minimal', prompt: RESTAURANT_MINIMAL }],
+  presets: [{ name: 'remodel', prompt: REMODEL_PROMPT }, { name: 'restaurant bold casual', prompt: RESTAURANT_BOLD }, { name: 'restaurant elegant minimal', prompt: RESTAURANT_MINIMAL }, { name: 'restaurant hole in the wall', prompt: RESTAURANT_HOLE }],
+  components: [],
   plans: [],
   claude_model: 'claude-fable-5-1',
   claude_effort: 'medium',

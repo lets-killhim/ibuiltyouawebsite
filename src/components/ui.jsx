@@ -185,7 +185,7 @@ export function SitePanel({ lead, settings, onLead, toast }) {
   const open = () => {
     if (!settings?.anthropic_key_last4) { toast('Add your Claude API key in settings first'); return; }
     const prev = site.inputs || {};
-    setAsk({ notes: prev.notes || '', palette: prev.palette || '', color: prev.color || '' });
+    setAsk({ notes: prev.notes || '', palette: prev.palette || '', color: prev.color || '', components: prev.components || [] });
   };
   const build = async (inputs) => {
     setAsk(null);
@@ -233,6 +233,12 @@ export function SitePanel({ lead, settings, onLead, toast }) {
                   </button>
                 ))}
               </div>
+              {(settings?.components || []).length > 0 && (<>
+                <span className="label">components to use</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {(settings.components || []).map((c) => { const on = (ask.components || []).includes(c.name); return <button key={c.name} onClick={() => setAsk({ ...ask, components: on ? ask.components.filter((n) => n !== c.name) : [...(ask.components || []), c.name] })} title={c.notes || c.kind} style={{ padding: '5px 9px', borderRadius: 999, border: '1.5px solid ' + (on ? 'var(--green)' : 'rgba(15,59,46,0.2)'), background: on ? 'var(--green)' : 'var(--paper)', color: on ? 'var(--bright)' : 'var(--green)', fontSize: 12, cursor: 'pointer' }}>{c.name}</button>; })}
+                </div>
+              </>)}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
                   <input type="color" value={ask.color || '#C8A45D'} onChange={(e) => setAsk({ ...ask, color: e.target.value })} style={{ width: 28, height: 28, padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }} />

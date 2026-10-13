@@ -39,6 +39,15 @@ export function brief(l, s, inputs = {}) {
   return lines.join('\n');
 }
 
+// Chosen library components ride along after the prompt, to be reused verbatim where they fit.
+export function withComponents(prompt, s, names = []) {
+  const lib = (s.components || []).filter((c) => names.includes(c.name));
+  if (!lib.length) return prompt;
+  const F = '```';
+  const block = lib.map((c) => `### ${c.name}${c.kind ? ` (${c.kind})` : ''}${c.notes ? `\n${c.notes}` : ''}\n${F}\n${c.code}\n${F}`).join('\n\n');
+  return prompt.trimEnd() + `\n\n## COMPONENT LIBRARY\n\nThe designer supplied these finished components. Use them where they fit the section they are made for, copying the code faithfully and adapting only colors, copy, photos and sizes to this site and its palette. Do not redesign them from scratch.\n\n${block}\n`;
+}
+
 export function systemFor(prompt, l, s, inputs) {
   const filled = '```\n' + brief(l, s, inputs) + '\n```';
   // the brief is the fenced block under the last "CLIENT BRIEF" heading; mentions of the brief elsewhere stay
@@ -91,7 +100,7 @@ export async function onRequestPost({ request, env }) {
     if (!l) return bad('not found', 404);
     const s = withDefaults(await getSettings(env));
     if (!s.anthropic_key) return bad('Add your Claude API key in settings first');
-    const inputs = { notes: String(notes).slice(0, 2000), palette: String(palette).slice(0, 200), color: /^#[0-9a-f]{6}$/i.test(color) ? color : '' };
+    const inputs = { notes: String(notes).slice(0, 2000), palette: String(palette).slice(0, 200), color: /^#[0-9a-f]{6}$/i.test(color) ? color : '', components: Array.isArray(body.components) ? body.components.map(String).slice(0, 12) : [] };
     const edit = String(body.edit || '').trim().slice(0, 4000);
     const presets = s.presets;
     const presetDef = presets.find((p) => p.name === preset) || presets[0];
@@ -106,7 +115,7 @@ export async function onRequestPost({ request, env }) {
       return new Response(upstream.body, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store' } });
     }
     await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'building', preset: presetDef.name, error: null, started_at: new Date().toISOString(), inputs, editing: null } });
-    const upstream = await startClaudeStream(s.anthropic_key, { model, effort: s.claude_effort || 'medium', system: systemFor(presetDef.prompt, l, s, inputs), user: USER });
+    const upstream = await startClaudeStream(s.anthropic_key, { model, effort: s.claude_effort || 'medium', system: withComponents(systemFor(presetDef.prompt, l, s, inputs), s, inputs.components), user: USER });
     return new Response(upstream.body, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', 'X-Build-Preset': presetDef.name } });
   } catch (e) {
     await fail(d, leadId, e.message);
