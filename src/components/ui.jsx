@@ -215,7 +215,7 @@ export function SitePanel({ lead, settings, onLead, toast }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <select className="input" value={preset} onChange={(e) => setPreset(e.target.value)} aria-label="Preset" style={{ flex: '1 1 auto', minHeight: 44 }}>
+        <select className="input pill-select" value={preset} onChange={(e) => setPreset(e.target.value)} aria-label="Preset" style={{ flex: '1 1 auto', minHeight: 44, borderRadius: 999, padding: '6px 34px 6px 14px' }}>
           {presets.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
         </select>
         <span ref={askRef} style={{ position: 'relative' }}>

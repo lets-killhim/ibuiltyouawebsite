@@ -5,7 +5,7 @@ import { present, digits } from '../_lib/leads.js';
 const FB = /^https?:\/\/(?:www\.|m\.|web\.)?facebook\.com\/([^?#]+)/i;
 const IG = /^https?:\/\/(?:www\.)?instagram\.com\/([A-Za-z0-9._]+)\/?(?:[?#].*)?$/i;
 const SKIP = new Set(['pages', 'search', 'groups', 'events', 'marketplace', 'public', 'login', 'explore', 'p', 'reel', 'reels', 'stories', 'story', 'hashtag', 'sharer', 'share', 'accounts', 'home', 'home.php', 'me', 'directory', 'places', 'biz', 'business', 'help', 'policies', 'privacy', 'legal', 'terms', 'about', 'ads', 'watch', 'gaming', 'live', 'photo', 'photos', 'photo.php', 'video', 'videos', 'notes', 'friends', 'messages', 'notifications', 'settings', 'bookmarks', 'saved', 'memories', 'dating', 'jobs', 'offers', 'weather', 'fundraisers', 'recommendations', 'community', 'l.php', 'dialog', 'plugins', 'tr', 'developers', 'careers', 'policy', 'security', 'recover', 'checkpoint', 'r.php', 'reg', 'signup', 'ajax', 'intl', 'tag', 'tags', 'topic', 'news', 'media', 'permalink.php', 'posts']);
-const STOP = new Set(['the', 'and', 'llc', 'inc', 'co', 'company', 'pool', 'pools', 'spa', 'spas', 'service', 'services', 'construction', 'builders', 'builder', 'contractor', 'contractors', 'remodeling', 'remodel', 'remodelers', 'remodeler', 'home', 'homes', 'design', 'designs', 'custom', 'group', 'solutions', 'pro', 'pros', 'electric', 'electrical', 'electrician', 'plumbing', 'plumber', 'roofing', 'roofer', 'landscaping', 'landscape', 'repair', 'repairs', 'experts', 'expert', 'painting', 'painters', 'tx', 'az', 'co', 'ga', 'fl', 'ca', 'wa', 'austin', 'phoenix', 'atlanta', 'denver', 'dallas', 'houston']);
+const STOP = new Set(['the', 'and', 'llc', 'inc', 'co', 'company', 'pool', 'pools', 'spa', 'spas', 'service', 'services', 'construction', 'builders', 'builder', 'contractor', 'contractors', 'remodeling', 'remodel', 'remodelers', 'remodeler', 'home', 'homes', 'design', 'designs', 'custom', 'group', 'solutions', 'pro', 'pros', 'electric', 'electrical', 'electrician', 'plumbing', 'plumber', 'roofing', 'roofer', 'landscaping', 'landscape', 'repair', 'repairs', 'experts', 'expert', 'painting', 'painters', 'restaurant', 'restaurants', 'cafe', 'coffee', 'kitchen', 'grill', 'bar', 'bistro', 'pizza', 'pizzeria', 'taqueria', 'deli', 'diner', 'shop', 'store', 'market', 'bakery', 'sushi', 'bbq', 'eatery', 'food', 'foods', 'cuisine', 'house', 'sub', 'subs', 'tx', 'az', 'co', 'ga', 'fl', 'ca', 'wa', 'austin', 'phoenix', 'atlanta', 'denver', 'dallas', 'houston']);
 
 // A Facebook page url, cleaned to its root. Accepts /people/Name/123 and /pages/Name/123 forms; rejects utility paths.
 function fbPage(link) {
@@ -26,7 +26,8 @@ function igPage(link) {
 
 // Does a search result's TITLE name this business? Needs every distinctive word of the name (or the whole name) in the title.
 function titleNames(title, name) {
-  const norm = (x) => x.toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  // strip accents first (Hương Bình -> huong binh) so non-ASCII names keep their distinctive words
+  const norm = (x) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
   const t = norm(title.split(/[(|•·-]/)[0]); const n = norm(name);
   if (!t || !n) return false;
   if (t.includes(n)) return true;

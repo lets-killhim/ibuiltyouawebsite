@@ -114,17 +114,17 @@ export default function Callcenter({ settings, toast, refreshCounts, summary }) 
       <div className="head">
         <h1>{headline[0]} <em>{headline[1]}</em></h1>
         <div className="filters" style={{ alignItems: 'center' }}>
-          <input className="input" value={find} onChange={(e) => setFind(e.target.value)} placeholder="find a name" aria-label="Find a lead" style={{ width: 180, minHeight: 36, padding: '6px 12px', borderRadius: 999, fontWeight: 400, letterSpacing: 0, textTransform: 'none' }} />
-          <button className={filter === 'new' ? 'on' : ''} onClick={() => setFilter('new')}>( today ) {leads.filter((l) => l.status === 'new').length || ''}</button>
-          <button className={filter === 'callback' ? 'on' : ''} onClick={() => setFilter('callback')}>( call later ) {leads.filter((l) => l.status === 'callback').length || ''}</button>
-          <select className="input" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort" style={{ width: 'auto', minHeight: 36, padding: '6px 12px', borderRadius: 999, fontWeight: 400, letterSpacing: 0, textTransform: 'none' }}>
+          <input className="input" value={find} onChange={(e) => setFind(e.target.value)} placeholder="find a name" aria-label="Find a lead" style={{ width: 180, minHeight: 36, padding: '6px 12px', borderRadius: 999, fontWeight: 400, letterSpacing: 0, textTransform: 'none', color: 'var(--bright)' }} />
+          <button className={filter === 'new' ? 'on' : ''} onClick={() => setFilter('new')}>today {leads.filter((l) => l.status === 'new').length || ''}</button>
+          <button className={filter === 'callback' ? 'on' : ''} onClick={() => setFilter('callback')}>call later {leads.filter((l) => l.status === 'callback').length || ''}</button>
+          <select className="input pill-select" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort" style={{ width: 'auto', minHeight: 36, padding: '6px 34px 6px 12px', borderRadius: 999, fontWeight: 400, letterSpacing: 0, textTransform: 'none' }}>
             <option value="score">sort: best first</option>
             <option value="reviews">sort: most reviews</option>
             <option value="photos">sort: most photos</option>
             <option value="area">sort: area code</option>
             <option value="site">sort: site built</option>
           </select>
-          <button className={allOpen ? 'on' : ''} onClick={() => setOpen(allOpen ? {} : Object.fromEntries(shown.map((l) => [l.id, true])))} title={allOpen ? 'close every row' : 'open every row'}>{allOpen ? '( close all )' : '( open all )'}</button>
+          <button className={allOpen ? 'on' : ''} onClick={() => setOpen(allOpen ? {} : Object.fromEntries(shown.map((l) => [l.id, true])))} title={allOpen ? 'close every row' : 'open every row'}>{allOpen ? 'close all' : 'open all'}</button>
         </div>
       </div>
 
@@ -140,12 +140,10 @@ export default function Callcenter({ settings, toast, refreshCounts, summary }) 
           {Object.keys(scan.debug.known || {}).length > 0 && <>, {Object.entries(scan.debug.known).map(([k, v]) => `${v} already in ${k === 'new' ? 'today' : k === 'callback' ? 'call later' : k}`).join(', ')}</>}
         </span>
       )}
-      {summary?.by_status && <span className="small muted">in your lists now: today {summary.by_status.new || 0}, call later {summary.by_status.callback || 0}, confirmed {summary.by_status.confirmed || 0}, trash {summary.by_status.trash || 0}{summary.by_status.trash ? <> · <button className="btn-ghost" style={{ height: 28, padding: '0 10px' }} onClick={async () => { if (!window.confirm('Empty the trash? Trashed businesses can come back on the next scan.')) return; await api.clear('trash'); refreshCounts(); }}>empty the trash</button></> : null}</span>}
       {enriching && <span className="small muted">checking Facebook, Instagram and photos, four leads at a time; you can keep calling</span>}
       {phase === 'done' && !enriching && (
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {leads.some((l) => !(l.photos || []).length) && <button className="btn-ghost" onClick={() => enrichAll(leads, true)}>re-check leads with no photos or socials</button>}
-          <button className="btn-ghost" onClick={async () => { if (!window.confirm(`Delete all ${leads.filter((l) => l.status === filter).length} leads in this list? Call-later and confirmed leads elsewhere are untouched.`)) return; await api.clear(filter); setLeads((ls) => ls.filter((l) => l.status !== filter)); refreshCounts(); }}>clear this list</button>
+          <button className="btn-ghost sm" onClick={async () => { if (!window.confirm(`Delete all ${leads.filter((l) => l.status === filter).length} leads in this list? Call-later and confirmed leads elsewhere are untouched.`)) return; await api.clear(filter); setLeads((ls) => ls.filter((l) => l.status !== filter)); refreshCounts(); }}>clear this list</button>
         </div>
       )}
 
@@ -222,7 +220,7 @@ function LeadRow({ lead: l, open, toggle, popup, setPopup, patch, trash, enrichi
 
       {open && (
         <div className="drop">
-          <div style={{ flex: '0 1 300px', display: 'flex', flexDirection: 'column', gap: 16, fontSize: 14, lineHeight: 1.55 }}>
+          <div className="drop-info" style={{ flex: '0 1 300px', display: 'flex', flexDirection: 'column', gap: 16, fontSize: 14, lineHeight: 1.55 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <span>{l.address}</span>
               <span className="muted">{l.rating ? `${l.rating} stars, ` : ''}{l.reviews} reviews{l.category ? `, ${l.category}` : ''}</span>
@@ -234,13 +232,15 @@ function LeadRow({ lead: l, open, toggle, popup, setPopup, patch, trash, enrichi
               <span>Instagram, {l.matches?.instagram || (l.enriched_at ? 'not found' : 'not checked yet')}</span>
             </div>
           </div>
-          <div style={{ flex: '1 1 360px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="drop-photos" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <span className="small muted">{l.photos?.length || 0} photos of their work{l.photos?.length ? ', from their Google listing' : l.enriched_at ? '' : ', still loading'}</span>
-            <div className="photos">
-              {(l.photos || []).slice(0, 12).map((p, i) => <img key={i} src={p.src} alt="" loading="lazy" style={{ cursor: 'zoom-in' }} onClick={() => setBox({ photos: l.photos, index: i })} />)}
+            <div className="photo-panel">
+              <div className={'photos' + ((l.photos || []).length > 12 ? ' scroll' : '')}>
+                {(l.photos || []).map((p, i) => <img key={i} src={p.src} alt="" loading="lazy" style={{ cursor: 'zoom-in' }} onClick={() => setBox({ photos: l.photos, index: i })} />)}
+              </div>
             </div>
           </div>
-          <div style={{ flex: '0 1 340px', minWidth: 0 }}>
+          <div className="drop-site" style={{ flex: '0 1 340px', minWidth: 0 }}>
             <SitePanel lead={l} settings={settings} onLead={onLead} toast={toast} />
           </div>
         </div>
