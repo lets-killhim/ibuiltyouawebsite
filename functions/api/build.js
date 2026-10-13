@@ -54,9 +54,15 @@ export function systemFor(prompt, l, s, inputs) {
   const core = (s.design_core || '').trim();
   const heads = [...prompt.matchAll(/^#+\s*CLIENT BRIEF[^\n]*$/gim)];
   const body = heads.length ? prompt.slice(0, heads[heads.length - 1].index).trimEnd() : prompt.trimEnd();
-  const stable = withComponents((core ? core + '\n\n' : '') + body, s, inputs?.components || []);
+  // Three blocks: the core (shared by every preset) and the preset + components each cached for an hour,
+  // then the per-lead brief. Switching presets keeps the core warm; a cache read on Fable costs 2.5%.
+  const presetBlock = withComponents(body, s, inputs?.components || []);
   const brief = '## CLIENT BRIEF\n\n```\n' + briefText(l, s, inputs) + '\n```';
-  return [{ type: 'text', text: stable, cache_control: { type: 'ephemeral' } }, { type: 'text', text: brief }];
+  const blocks = [];
+  if (core) blocks.push({ type: 'text', text: core + '\n\n', cache_control: { type: 'ephemeral', ttl: '1h' } });
+  blocks.push({ type: 'text', text: presetBlock, cache_control: { type: 'ephemeral', ttl: '1h' } });
+  blocks.push({ type: 'text', text: '\n\n' + brief });
+  return blocks;
 }
 
 export const USER = 'Build the site for the CLIENT BRIEF above. Output in this order: the short design spec (name the direction letter), then the complete single-file index.html inside one ```html code block, then the short list titled "Missing from the brief". Nothing else. Write the code exactly once: do the self-critique in your head before the code block and never print a second or revised copy of the page.';
@@ -76,8 +82,9 @@ const PRICE = [
 ];
 export function buildCost(model, input, output, cacheRead = 0, cacheWrite = 0) {
   const [, i, o] = PRICE.find(([re]) => re.test(model || '')) || [null, 10, 50];
-  // cached prompt reads bill at 10% of the input price, cache writes at 125%
-  return (input * i + cacheRead * i * 0.1 + cacheWrite * i * 1.25 + output * o) / 1e6;
+  // one-hour cache writes bill at 2x the input price; reads at 2.5% on Fable, 5% on Opus/Sonnet 5.5, 10% otherwise
+  const read = /fable|mythos/.test(model || '') ? 0.025 : /opus-5-5|sonnet-5-5/.test(model || '') ? 0.05 : 0.1;
+  return (input * i + cacheRead * i * read + cacheWrite * i * 2 + output * o) / 1e6;
 }
 
 // Step 1 of a build: open the Claude stream and pass it straight through to the browser. The browser
