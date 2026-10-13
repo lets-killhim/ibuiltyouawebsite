@@ -62,3 +62,19 @@ export function notesAround(text, html) {
   }
   return out.replace(/\n{3,}/g, '\n\n').trim().slice(0, 6000);
 }
+
+// Apply search/replace blocks from an edit reply to the current page. Exact match first, then a
+// whitespace-tolerant match. Returns { html, applied, failed } where failed lists unmatched searches.
+export function applyEdits(html, text) {
+  const re = /<{7} SEARCH\n([\s\S]*?)\n={7}\n([\s\S]*?)\n>{7} REPLACE/g;
+  let out = html, applied = 0; const failed = [];
+  for (const m of text.matchAll(re)) {
+    const search = m[1], repl = m[2];
+    let i = out.indexOf(search);
+    if (i >= 0) { out = out.slice(0, i) + repl + out.slice(i + search.length); applied++; continue; }
+    const loose = new RegExp(search.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+')).join('\\s*\\n\\s*'));
+    const lm = loose.exec(out);
+    if (lm) { out = out.slice(0, lm.index) + repl + out.slice(lm.index + lm[0].length); applied++; } else failed.push(search.split('\n')[0].trim().slice(0, 60));
+  }
+  return { html: out, applied, failed };
+}

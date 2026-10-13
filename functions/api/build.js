@@ -1,6 +1,6 @@
 import { db, json, bad, getSettings, logCost } from '../_lib/db.js';
 import { present } from '../_lib/leads.js';
-import { startClaudeStream, extractHtml, notesAround } from '../_lib/claude.js';
+import { startClaudeStream, extractHtml, notesAround, applyEdits } from '../_lib/claude.js';
 import { withDefaults } from './settings.js';
 
 // The preset's prompt IS the system prompt. If it carries a CLIENT BRIEF block (a fenced block after a
@@ -63,8 +63,14 @@ export function systemFor(prompt, l, s, inputs) {
 }
 
 export const EDIT_SYSTEM = `You are editing an existing one-page website for a small local business. You will be given the complete current HTML and one change request from the designer who built it.
-Apply exactly the change requested, keeping everything else (design, copy, structure, photos, scripts) as it is unless the change requires touching it. Never invent facts about the business. Keep the page self-contained and valid.
-Output the complete updated index.html inside one ` + "```html" + ` code block, then a single line starting with "Changed:" summarizing what you did. Nothing else.`;
+Make exactly the change requested and nothing else. Never invent facts about the business.
+Reply ONLY with one or more patch blocks, each in this exact format:
+<<<<<<< SEARCH
+(a verbatim excerpt of the current file: the smallest run of whole lines that must change, copied character for character, and unique in the file)
+=======
+(the replacement for that excerpt)
+>>>>>>> REPLACE
+Rules: copy SEARCH text exactly as it appears, including indentation; keep each SEARCH under 40 lines; to add something, SEARCH for the lines it goes next to and include them unchanged in the replacement; never output the whole file; no commentary between blocks. After the last block, one line starting with "Changed:" summarizing what you did.`;
 
 export const USER = 'Build the site for the CLIENT BRIEF above. Output in this order: the short design spec (name the direction letter), then the complete single-file index.html inside one ```html code block, then the short list titled "Missing from the brief". Nothing else. Write the code exactly once: do the self-critique in your head before the code block and never print a second or revised copy of the page.';
 
@@ -111,7 +117,7 @@ export async function onRequestPost({ request, env }) {
       if (!prev.length || !prev[0].html) return bad('Build the site first');
       await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'building', error: null, started_at: new Date().toISOString(), editing: edit } });
       const user = 'Current page:\n```html\n' + prev[0].html + '\n```\n\nChange requested: ' + edit;
-      const upstream = await startClaudeStream(s.anthropic_key, { model, effort: s.claude_edit_effort || 'low', system: EDIT_SYSTEM, user, max_tokens: 40000 });
+      const upstream = await startClaudeStream(s.anthropic_key, { model, effort: s.claude_edit_effort || 'low', system: EDIT_SYSTEM, user, max_tokens: 16000 });
       return new Response(upstream.body, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store' } });
     }
     await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'building', preset: presetDef.name, error: null, started_at: new Date().toISOString(), inputs, editing: null } });
@@ -143,7 +149,18 @@ export async function onRequestPut({ request, env }) {
       const [u] = await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'ready', version, edits, editing: null, built_at: new Date().toISOString(), error: null } });
       return json(present(u));
     }
-    const html = extractHtml(text || '');
+    let html, notes;
+    if (edit) {
+      const cur = await d.select('sites', `lead_id=eq.${id}&select=html&order=version.desc&limit=1`);
+      const full = extractHtml(text || '');
+      if (/<html/i.test(full) && full.length > 500 && /<\/html>$/i.test(full)) html = full; // it rewrote the page anyway
+      else {
+        const r = applyEdits(cur[0]?.html || '', text || '');
+        if (!r.applied) throw new Error(`could not apply that edit${r.failed.length ? ` (no match for "${r.failed[0]}")` : ''}; try describing the change differently`);
+        html = r.html;
+        if (r.failed.length) notes = `Changed: partially applied, ${r.failed.length} patch(es) did not match`;
+      }
+    } else html = extractHtml(text || '');
     const complete = /<html/i.test(html) && html.length > 500 && /<\/html>$/i.test(html);
     if (stop_reason === 'max_tokens' && !complete) {
       // say what was written so a runaway output can be diagnosed from the error itself
@@ -152,7 +169,7 @@ export async function onRequestPut({ request, env }) {
       throw new Error(`ran past the output limit at ${output_tokens} tokens without finishing: ${Math.round(t.length / 1000)}k chars, ${starts} page start(s), ${fences} fence marks; ends with "…${t.slice(-240).replace(/\s+/g, ' ')}"`);
     }
     if (!complete) throw new Error('Claude did not return a complete page');
-    const notes = notesAround(text, html);
+    notes = notes || (edit ? ((/^Changed:.*$/im.exec(text || '') || [''])[0]) : notesAround(text, html));
     const direction = (/[Dd]irection[^\n]{0,40}?\b([A-F])\b/.exec(notes) || [])[1] || null;
 
     const prev = await d.select('sites', `lead_id=eq.${id}&select=version,token&order=version.desc&limit=1`);
