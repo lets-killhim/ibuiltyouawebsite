@@ -72,7 +72,7 @@ function ClientRow({ lead: l, open, toggle, patch, settings, toast, refreshCount
 
   return (
     <div className="rowwrap">
-      <button className="row" onClick={toggle} style={{ background: 'transparent', border: 0, borderTop: '1px solid var(--line)', padding: 0, textAlign: 'left', color: 'inherit', cursor: 'pointer', minHeight: 64 }}>
+      <button className="row" onClick={toggle} style={{ background: 'transparent', border: 0, borderTop: '2px solid var(--rule)', padding: 0, textAlign: 'left', color: 'inherit', cursor: 'pointer', minHeight: 64 }}>
         <span className="tag"><span className="sq" style={{ background: WARM[Math.max(0, l.warmth - 1)] }} /></span>
         <span className="name" style={{ flex: '1 1 300px' }}>{l.name}</span>
         <span className="cell" style={{ flex: '0 0 200px' }}>{l.meeting ? fmtMeeting(l.meeting) : 'no meeting'}</span>
