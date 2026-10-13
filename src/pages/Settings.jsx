@@ -69,13 +69,15 @@ export default function Settings({ settings, onSaved, toast }) {
   const [planTitle, setPlanTitle] = useState('');
   const [planLink, setPlanLink] = useState('');
   const saveT = useRef(null);
-  useEffect(() => { setS(settings || {}); if (!preset && settings?.presets?.length) setPreset(settings.presets[0].name); }, [settings]);
+  // Take the server's settings once on mount. Autosave replies must not overwrite what is being typed,
+  // or the caret jumps to the end of the box.
+  useEffect(() => { setS(settings || {}); if (!preset && settings?.presets?.length) setPreset(settings.presets[0].name); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = (patch) => {
     const next = { ...s, ...patch }; setS(next);
     clearTimeout(saveT.current);
     saveT.current = setTimeout(async () => {
-      try { const saved = await api.saveSettings(patch); onSaved(saved); } catch (e) { toast('Could not save: ' + e.message); }
+      try { const saved = await api.saveSettings(patch); onSaved(saved); setS((cur) => ({ ...cur, ...Object.fromEntries(Object.entries(saved).filter(([k]) => k.endsWith('_last4') || k === 'has_outscraper')) })); } catch (e) { toast('Could not save: ' + e.message); }
     }, 500);
   };
   const saveKey = (k, v) => { setKeys((x) => ({ ...x, [k]: v })); if (v && !v.includes('••••')) save({ [k]: v }); };
