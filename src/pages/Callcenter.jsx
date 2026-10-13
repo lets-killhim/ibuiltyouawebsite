@@ -4,18 +4,6 @@ import { I, Pill, Socials, MonthGrid, TimeEntry, fmtTime, WarmthPicker, Lightbox
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-// Turns vertical mouse-wheel motion into sideways scrolling while the pointer is over a scrolling photo strip.
-function wheelScroll(el) {
-  if (!el || el.__wheel) return;
-  el.__wheel = true;
-  el.addEventListener('wheel', (e) => {
-    if (!el.classList.contains('scroll') || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
-    const max = el.scrollWidth - el.clientWidth;
-    const next = Math.max(0, Math.min(max, el.scrollLeft + e.deltaY));
-    if (next !== el.scrollLeft) { e.preventDefault(); el.scrollLeft = next; }
-  }, { passive: false });
-}
-
 export default function Callcenter({ settings, toast, refreshCounts, summary }) {
   const [niche, setNiche] = useState(settings?.last_niche || 'pool builders');
   const [where, setWhere] = useState(settings?.last_where || 'Phoenix AZ, Mesa AZ, Scottsdale AZ, Tucson AZ');
@@ -181,6 +169,7 @@ function estimate(niche, where) {
 }
 
 function LeadRow({ lead: l, open, toggle, popup, setPopup, patch, trash, enriching, setBox, settings, onLead, toast }) {
+  const stripRef = useRef(null);
   const first = l.name.split(' ')[0];
   const labeled = l.status === 'callback' || l.status === 'confirmed';
 
@@ -241,10 +230,14 @@ function LeadRow({ lead: l, open, toggle, popup, setPopup, patch, trash, enrichi
             {l.blurb && <p className="muted" style={{ margin: 0, borderTop: '1px solid var(--line)', paddingTop: 12, fontSize: 13, lineHeight: 1.5 }}>{l.blurb}</p>}
           </div>
           <div className="drop-photos" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div className="photo-panel">
-              <div className={'photos' + ((l.photos || []).length > 12 ? ' scroll' : '')} ref={wheelScroll}>
+            <div className={'photo-panel' + ((l.photos || []).length > 12 ? ' has-more' : '')}>
+              <div className={'photos' + ((l.photos || []).length > 12 ? ' scroll' : '')} ref={(el) => { stripRef.current = el; }}>
                 {(l.photos || []).map((p, i) => <img key={i} src={p.src} alt="" loading="lazy" style={{ cursor: 'zoom-in' }} onClick={() => setBox({ photos: l.photos, index: i })} />)}
               </div>
+              {(l.photos || []).length > 12 && (<>
+                <button className="strip-arrow left" aria-label="Earlier photos" onClick={() => stripRef.current?.scrollBy({ left: -stripRef.current.clientWidth, behavior: 'smooth' })}>{I.arrowL || '‹'}</button>
+                <button className="strip-arrow right" aria-label="More photos" onClick={() => stripRef.current?.scrollBy({ left: stripRef.current.clientWidth, behavior: 'smooth' })}>{I.arrowR || '›'}</button>
+              </>)}
             </div>
           </div>
           <div className="drop-site" style={{ flex: '0 1 340px', minWidth: 0 }}>

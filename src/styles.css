@@ -84,7 +84,11 @@ select.input option { background: var(--cream); color: var(--green); font-weight
 .tag { display: inline-flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--bright); }
 .tag .sq { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
 .tag .when { color: var(--muted); letter-spacing: 0; text-transform: none; font-weight: 500; }
-.photo-panel { background: var(--cream); border-radius: 10px; padding: 6px; }
+.photo-panel { background: var(--cream); border-radius: 10px; padding: 6px; position: relative; }
+.strip-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 26px; height: 26px; border-radius: 999px; border: 0; background: rgba(15,59,46,0.85); color: var(--bright); font-size: 18px; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity 140ms; padding: 0 0 2px; }
+.strip-arrow.left { left: 10px; } .strip-arrow.right { right: 10px; }
+.photo-panel.has-more:hover .strip-arrow, .strip-arrow:focus-visible { opacity: 1; }
+.photos.scroll { scroll-behavior: smooth; }
 .photos { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 6px; }
 /* more than twelve: two rows that scroll sideways, every photo reachable */
 .photos.scroll { grid-auto-flow: column; grid-template-rows: repeat(2, minmax(0, 1fr)); grid-template-columns: none; grid-auto-columns: calc((100% - 30px) / 6); overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; -ms-overflow-style: none; }
