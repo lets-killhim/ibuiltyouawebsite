@@ -51,10 +51,12 @@ insert into storage.buckets (id, name, public) values ('photos', 'photos', true)
 create table if not exists sites (
   id uuid primary key default gen_random_uuid(),
   lead_id uuid references leads(id) on delete cascade,
-  token text unique,
+  token text,
   preset text, version int default 1,
   html text,
   model text, input_tokens int, output_tokens int,
   created_at timestamptz default now()
 );
 create index if not exists sites_lead on sites(lead_id);
+create unique index if not exists sites_token_version on sites(token, version);
+-- existing installs: alter table sites drop constraint if exists sites_token_key;
