@@ -39,7 +39,7 @@ export const api = {
       throw new ApiError(res.status, data.error || res.statusText);
     }
     const reader = res.body.getReader(); const dec = new TextDecoder();
-    let buf = '', text = '', model = null, input_tokens = 0, output_tokens = 0, stop_reason = null;
+    let buf = '', text = '', model = null, input_tokens = 0, output_tokens = 0, stop_reason = null, cache_read = 0, cache_write = 0;
     try {
       for (;;) {
         const { value, done } = await reader.read();
@@ -51,7 +51,7 @@ export const api = {
           const line = chunk.split('\n').find((l) => l.startsWith('data:'));
           if (!line) continue;
           let ev; try { ev = JSON.parse(line.slice(5).trim()); } catch { continue; }
-          if (ev.type === 'message_start') { model = ev.message?.model || null; input_tokens = ev.message?.usage?.input_tokens || 0; }
+          if (ev.type === 'message_start') { const u = ev.message?.usage || {}; model = ev.message?.model || null; input_tokens = u.input_tokens || 0; cache_read = u.cache_read_input_tokens || 0; cache_write = u.cache_creation_input_tokens || 0; }
           else if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') { text += ev.delta.text; if (onProgress) onProgress(text.length); }
           else if (ev.type === 'message_delta') { output_tokens = ev.usage?.output_tokens || output_tokens; stop_reason = ev.delta?.stop_reason || stop_reason; }
           else if (ev.type === 'error') throw new Error((ev.error && ev.error.message) || 'Claude stream error');
@@ -62,7 +62,7 @@ export const api = {
       await call('PUT', '/api/build', { id, error: e.message }).catch(() => {});
       throw e;
     }
-    return call('PUT', '/api/build', { id, preset, text, model, input_tokens, output_tokens, stop_reason, edit: inputs.edit || undefined });
+    return call('PUT', '/api/build', { id, preset, text, model, input_tokens, output_tokens, cache_read, cache_write, stop_reason, edit: inputs.edit || undefined });
   },
   addLead: (name, email, phone) => call('POST', '/api/leads', { name, email, phone }),
   undoEdit: (id) => call('PUT', '/api/build', { id, revert: true }),

@@ -152,7 +152,10 @@ export default function Settings({ settings, onSaved, toast }) {
         </div>
 
         <div className="col">
-          <span className="sect">site presets</span>
+          <span className="sect">design core, shared by every preset</span>
+          <textarea className="input" rows={10} value={s.design_core || ''} onChange={(e) => save({ design_core: e.target.value })} style={{ fontSize: 12, lineHeight: 1.45 }} />
+          <span className="small muted">the studio's taste: what to avoid, how to use type and color, how to write, how to handle missing info. Every build starts with this, then the preset below</span>
+          <span className="sect" style={{ marginTop: 8 }}>site presets</span>
           <select className="input" value={cur.name} onChange={(e) => { setPreset(e.target.value); setNaming(false); setDirty(false); }}>
             {presets.map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
           </select>
@@ -168,7 +171,7 @@ export default function Settings({ settings, onSaved, toast }) {
               <button className="btn-ghost" onClick={() => setNaming(false)}>cancel</button>
             </div>
           )}
-          <span className="small muted">this whole text is the system prompt for a build; the app fills the CLIENT BRIEF block at the bottom from the lead</span>
+          <span className="small muted">what is specific to this kind of business: its visitor, its page architecture, its menu or form, its directions. The app fills the CLIENT BRIEF block at the bottom from the lead</span>
         </div>
 
         <div className="col">

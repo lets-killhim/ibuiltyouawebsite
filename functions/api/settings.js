@@ -1,13 +1,13 @@
 import { db, json, bad, getSettings } from '../_lib/db.js';
-import { REMODEL_PROMPT } from '../_lib/remodel-prompt.js';
-import { RESTAURANT_BOLD, RESTAURANT_MINIMAL, RESTAURANT_HOLE } from '../_lib/restaurant-prompts.js';
+import { DESIGN_CORE, PRESETS } from '../_lib/prompts.js';
 
 // Presets saved before this version are the old four and are dropped; edits saved from now on carry the version.
 const PRESETS_VERSION = 3;
 
 const SECRET = ['outscraper_key', 'anthropic_key', 'resend_key', 'twilio_sid', 'twilio_token', 'cloudflare_token', 'stripe_key'];
 const DEFAULTS = {
-  presets: [{ name: 'remodel', prompt: REMODEL_PROMPT }, { name: 'restaurant bold casual', prompt: RESTAURANT_BOLD }, { name: 'restaurant elegant minimal', prompt: RESTAURANT_MINIMAL }, { name: 'restaurant hole in the wall', prompt: RESTAURANT_HOLE }],
+  presets: PRESETS,
+  design_core: DESIGN_CORE,
   components: [],
   plans: [],
   claude_model: 'claude-fable-5-1',
@@ -24,11 +24,11 @@ const DEFAULTS = {
 // Saved presets (current scheme) come first, then any default preset they don't have yet by name.
 // A saved copy of an earlier default (untouched by the user) is swapped for the current default.
 const hash = (t) => { let x = 5381; for (let i = 0; i < t.length; i++) x = ((x * 33) ^ t.charCodeAt(i)) >>> 0; return x.toString(36); };
-const SUPERSEDED = {"restaurant bold casual": "jhu8vr", "restaurant elegant minimal": "15ohplf", "restaurant hole in the wall": "1qx0lqr"};
+const SUPERSEDED = {"remodel": ["1dbz5ay"], "restaurant bold casual": ["195es0h", "jhu8vr"], "restaurant elegant minimal": ["1kfuz9r", "15ohplf"], "restaurant hole in the wall": ["w1jh2z", "1qx0lqr"]};
 export const presetsOf = (data) => {
   const saved = data.presets_version === PRESETS_VERSION && Array.isArray(data.presets) ? data.presets : [];
   const current = Object.fromEntries(DEFAULTS.presets.map((p) => [p.name, p]));
-  const merged = saved.map((p) => (current[p.name] && SUPERSEDED[p.name] === hash(p.prompt) ? current[p.name] : p));
+  const merged = saved.map((p) => (current[p.name] && (SUPERSEDED[p.name] || []).includes(hash(p.prompt)) ? current[p.name] : p));
   const have = new Set(merged.map((p) => p.name));
   return [...merged, ...DEFAULTS.presets.filter((p) => !have.has(p.name))];
 };

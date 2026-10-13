@@ -17,7 +17,7 @@ export async function startClaudeStream(key, { model, system, user, effort = 'me
   const call = (maxTokens) => fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }], stream: true, output_config: { effort } }),
+    body: JSON.stringify({ model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }], stream: true, output_config: { effort } }), // system may be a string or cached blocks
   });
   let res = null, waited = 0, maxTokens = max_tokens;
   for (let attempt = 0; attempt < 12; attempt++) {

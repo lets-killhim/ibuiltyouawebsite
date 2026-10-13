@@ -5,7 +5,7 @@ import { withDefaults } from './settings.js';
 
 // The preset's prompt IS the system prompt. If it carries a CLIENT BRIEF block (a fenced block after a
 // "CLIENT BRIEF" heading), the app rewrites that block from the lead; otherwise the brief is appended.
-export function brief(l, s, inputs = {}) {
+export function briefText(l, s, inputs = {}) {
   const na = 'not provided';
   const photos = (l.photos || []).slice(0, 14).map((p, i) => `  - ${p.src}${i === 0 ? ' (the listing\'s main photo; subject not described)' : ' (subject not described)'}`);
   const where = [l.city, l.state].filter(Boolean).join(', ');
@@ -48,29 +48,16 @@ export function withComponents(prompt, s, names = []) {
   return prompt.trimEnd() + `\n\n## COMPONENT LIBRARY\n\nThe designer supplied these finished components. Use them where they fit the section they are made for, copying the code faithfully and adapting only colors, copy, photos and sizes to this site and its palette. Do not redesign them from scratch.\n\n${block}\n`;
 }
 
+// The system prompt in two blocks: a stable prefix (design core + preset + chosen components) that the
+// API caches across builds, and the per-lead brief. The preset's own CLIENT BRIEF block is replaced.
 export function systemFor(prompt, l, s, inputs) {
-  const filled = '```\n' + brief(l, s, inputs) + '\n```';
-  // the brief is the fenced block under the last "CLIENT BRIEF" heading; mentions of the brief elsewhere stay
+  const core = (s.design_core || '').trim();
   const heads = [...prompt.matchAll(/^#+\s*CLIENT BRIEF[^\n]*$/gim)];
-  if (heads.length) {
-    const h = heads[heads.length - 1];
-    const open = prompt.indexOf('```', h.index + h[0].length);
-    const close = open >= 0 ? prompt.indexOf('```', prompt.indexOf('\n', open) + 1) : -1;
-    if (open >= 0 && close >= 0) return prompt.slice(0, open) + filled + prompt.slice(close + 3);
-    return prompt.slice(0, h.index + h[0].length) + '\n\n' + filled + '\n';
-  }
-  return prompt.trimEnd() + '\n\n## CLIENT BRIEF\n\n' + filled + '\n';
+  const body = heads.length ? prompt.slice(0, heads[heads.length - 1].index).trimEnd() : prompt.trimEnd();
+  const stable = withComponents((core ? core + '\n\n' : '') + body, s, inputs?.components || []);
+  const brief = '## CLIENT BRIEF\n\n```\n' + briefText(l, s, inputs) + '\n```';
+  return [{ type: 'text', text: stable, cache_control: { type: 'ephemeral' } }, { type: 'text', text: brief }];
 }
-
-export const EDIT_SYSTEM = `You are editing an existing one-page website for a small local business. You will be given the complete current HTML and one change request from the designer who built it.
-Make exactly the change requested and nothing else. Never invent facts about the business.
-Reply ONLY with one or more patch blocks, each in this exact format:
-<<<<<<< SEARCH
-(a verbatim excerpt of the current file: the smallest run of whole lines that must change, copied character for character, and unique in the file)
-=======
-(the replacement for that excerpt)
->>>>>>> REPLACE
-Rules: copy SEARCH text exactly as it appears, including indentation; keep each SEARCH under 40 lines; to add something, SEARCH for the lines it goes next to and include them unchanged in the replacement; never output the whole file; no commentary between blocks. After the last block, one line starting with "Changed:" summarizing what you did.`;
 
 export const USER = 'Build the site for the CLIENT BRIEF above. Output in this order: the short design spec (name the direction letter), then the complete single-file index.html inside one ```html code block, then the short list titled "Missing from the brief". Nothing else. Write the code exactly once: do the self-critique in your head before the code block and never print a second or revised copy of the page.';
 
@@ -87,9 +74,10 @@ const PRICE = [
   [/haiku-5/, 0.1, 0.5],
   [/haiku/, 1, 5],
 ];
-export function buildCost(model, input, output) {
+export function buildCost(model, input, output, cacheRead = 0, cacheWrite = 0) {
   const [, i, o] = PRICE.find(([re]) => re.test(model || '')) || [null, 10, 50];
-  return (input * i + output * o) / 1e6;
+  // cached prompt reads bill at 10% of the input price, cache writes at 125%
+  return (input * i + cacheRead * i * 0.1 + cacheWrite * i * 1.25 + output * o) / 1e6;
 }
 
 // Step 1 of a build: open the Claude stream and pass it straight through to the browser. The browser
@@ -121,7 +109,7 @@ export async function onRequestPost({ request, env }) {
       return new Response(upstream.body, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store' } });
     }
     await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'building', preset: presetDef.name, error: null, started_at: new Date().toISOString(), inputs, editing: null } });
-    const upstream = await startClaudeStream(s.anthropic_key, { model, effort: s.claude_effort || 'medium', system: withComponents(systemFor(presetDef.prompt, l, s, inputs), s, inputs.components), user: USER });
+    const upstream = await startClaudeStream(s.anthropic_key, { model, effort: s.claude_effort || 'medium', system: systemFor(presetDef.prompt, l, s, inputs), user: USER });
     return new Response(upstream.body, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', 'X-Build-Preset': presetDef.name } });
   } catch (e) {
     await fail(d, leadId, e.message);
@@ -134,7 +122,7 @@ export async function onRequestPut({ request, env }) {
   const d = db(env);
   let leadId = null;
   try {
-    const { id, preset, text, model, input_tokens = 0, output_tokens = 0, stop_reason, error, edit, revert } = await request.json();
+    const { id, preset, text, model, input_tokens = 0, output_tokens = 0, cache_read = 0, cache_write = 0, stop_reason, error, edit, revert } = await request.json();
     leadId = id;
     const [l] = await d.select('leads', `id=eq.${id}`);
     if (!l) return bad('not found', 404);
@@ -176,7 +164,7 @@ export async function onRequestPut({ request, env }) {
     const version = prev.length ? (prev[0].version || 0) + 1 : 1;
     const token = prev.length && prev[0].token ? prev[0].token : Math.random().toString(36).slice(2, 12);
     await d.insert('sites', [{ lead_id: id, token, preset, version, html, model, input_tokens, output_tokens }]);
-    await logCost(env, `claude build (${model})`, input_tokens + output_tokens, buildCost(model, input_tokens, output_tokens));
+    await logCost(env, `claude ${edit ? 'edit' : 'build'} (${model})`, input_tokens + cache_read + cache_write + output_tokens, buildCost(model, input_tokens, output_tokens, cache_read, cache_write));
     const url = `${new URL(request.url).origin}/s/${token}`;
     const edits = edit ? [...(l.site?.edits || []), { text: edit, at: new Date().toISOString(), version, summary: (/^Changed:\s*(.+)$/im.exec(notes) || [])[1] || '' }].slice(-30) : (l.site?.edits || []);
     const [u] = await d.update('leads', `id=eq.${id}`, { site: { status: 'ready', preset: edit ? (l.site?.preset || preset) : preset, token, url, version, model, direction: edit ? (l.site?.direction || direction) : direction, inputs: l.site?.inputs || null, sent: l.site?.sent || [], edits, editing: null, built_at: new Date().toISOString(), error: null } });
