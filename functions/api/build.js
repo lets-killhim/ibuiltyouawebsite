@@ -102,11 +102,11 @@ export function buildCost(model, input, output, cacheRead = 0, cacheWrite = 0) {
 // and sends the finished text to the PUT below, which stores it.
 export async function onRequestPost({ request, env }) {
   const d = db(env);
-  let leadId = null;
+  let leadId = null, slot = 0;
   try {
     const body = await request.json();
     const { id, preset, notes = '', palette = '', color = '' } = body;
-    leadId = id;
+    leadId = id; slot = Math.max(0, Math.min(9, Number(body.slot) || 0));
     const [l] = await d.select('leads', `id=eq.${id}`);
     if (!l) return bad('not found', 404);
     const s = withDefaults(await getSettings(env));
@@ -119,20 +119,22 @@ export async function onRequestPost({ request, env }) {
     const presets = s.presets;
     const presetDef = presets.find((p) => p.name === preset) || presets[0];
     const model = s.claude_model || 'claude-fable-5-1';
+    const cur = slotOf(l, slot);
     if (edit) {
       // an edit: feed the current page back with the request, same token, next version
-      const prev = await d.select('sites', `lead_id=eq.${id}&select=html&order=version.desc&limit=1`);
+      if (!cur.token) return bad('Build the site first');
+      const prev = await d.select('sites', `token=eq.${cur.token}&select=html&order=version.desc&limit=1`);
       if (!prev.length || !prev[0].html) return bad('Build the site first');
-      await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'building', error: null, started_at: new Date().toISOString(), editing: edit } });
+      await d.update('leads', `id=eq.${id}`, { site: withSlot(l, slot, { status: 'building', error: null, started_at: new Date().toISOString(), editing: edit }) });
       const user = 'Current page:\n```html\n' + prev[0].html + '\n```\n\nChange requested: ' + edit;
       const upstream = await startClaudeStream(s.anthropic_key, { model, effort: s.claude_edit_effort || 'low', system: EDIT_SYSTEM, user, max_tokens: 16000 });
       return new Response(upstream.body, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store' } });
     }
-    await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'building', preset: presetDef.name, error: null, started_at: new Date().toISOString(), inputs: { notes: inputs.notes, palette: inputs.palette, color: inputs.color, components: inputs.components }, editing: null } });
-    const upstream = await startClaudeStream(s.anthropic_key, { model, effort: s.claude_effort || 'medium', system: systemFor(presetDef.prompt, l, s, inputs), user: USER });
+    await d.update('leads', `id=eq.${id}`, { site: withSlot(l, slot, { status: 'building', preset: presetDef.name, error: null, started_at: new Date().toISOString(), inputs: { notes: inputs.notes, palette: inputs.palette, color: inputs.color, components: inputs.components }, editing: null }) });
+    const upstream = await startClaudeStream(s.anthropic_key, { model, effort: s.claude_effort || 'medium', system: systemFor(presetDef.prompt, { ...l, site: cur }, s, inputs), user: USER });
     return new Response(upstream.body, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', 'X-Build-Preset': presetDef.name } });
   } catch (e) {
-    await fail(d, leadId, e.message);
+    await fail(d, leadId, e.message, slot);
     return bad(e.message, 500);
   }
 }
@@ -140,16 +142,19 @@ export async function onRequestPost({ request, env }) {
 // Step 2: the browser hands back what Claude wrote; store it, or record why it failed.
 export async function onRequestPut({ request, env }) {
   const d = db(env);
-  let leadId = null;
+  let leadId = null, slot = 0;
   try {
-    const { id, preset, text, model, input_tokens = 0, output_tokens = 0, cache_read = 0, cache_write = 0, stop_reason, error, edit, revert, activate_form } = await request.json();
-    leadId = id;
+    const body = await request.json();
+    const { id, preset, text, model, input_tokens = 0, output_tokens = 0, cache_read = 0, cache_write = 0, stop_reason, error, edit, revert, activate_form } = body;
+    leadId = id; slot = Math.max(0, Math.min(9, Number(body.slot) || 0));
     const [l] = await d.select('leads', `id=eq.${id}`);
     if (!l) return bad('not found', 404);
-    if (error) { await fail(d, id, error); const [u] = await d.select('leads', `id=eq.${id}`); return json(present(u)); }
+    const cur = slotOf(l, slot);
+    if (error) { await fail(d, id, error, slot); const [u] = await d.select('leads', `id=eq.${id}`); return json(present(u)); }
     if (activate_form) {
       // point an older site's form at this app's endpoint, as a new version at the same link
-      const rows = await d.select('sites', `lead_id=eq.${id}&select=version,token,html,preset,model&order=version.desc&limit=1`);
+      if (!cur.token) return bad('Build the site first');
+      const rows = await d.select('sites', `token=eq.${cur.token}&select=version,token,html,preset,model&order=version.desc&limit=1`);
       if (!rows.length) return bad('Build the site first');
       const form_token = l.site?.form_token || Math.random().toString(36).slice(2, 14);
       const endpoint = `${new URL(request.url).origin}/f/${form_token}`;
@@ -158,26 +163,27 @@ export async function onRequestPut({ request, env }) {
       html = html.replace(/action="(#|placeholder|\{\{form_endpoint\}\})"/g, `action="${endpoint}"`);
       const version = (rows[0].version || 0) + 1;
       await d.insert('sites', [{ lead_id: id, token: rows[0].token, preset: rows[0].preset, version, html, model: rows[0].model, input_tokens: 0, output_tokens: 0 }]);
-      const [u] = await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), form_token, version, status: 'ready', built_at: new Date().toISOString() } });
+      const [u] = await d.update('leads', `id=eq.${id}`, { site: { ...withSlot(l, slot, { version, status: 'ready', built_at: new Date().toISOString() }), form_token } });
       return json(present(u));
     }
     if (revert) {
       // undo the last edit: republish the version before it as a new version
-      const rows = await d.select('sites', `lead_id=eq.${id}&select=version,token,html,preset,model&order=version.desc&limit=2`);
+      if (!cur.token) return bad('Nothing to undo');
+      const rows = await d.select('sites', `token=eq.${cur.token}&select=version,token,html,preset,model&order=version.desc&limit=2`);
       if (rows.length < 2) return bad('Nothing to undo');
       const back = rows[1], version = (rows[0].version || 0) + 1;
       await d.insert('sites', [{ lead_id: id, token: rows[0].token, preset: back.preset, version, html: back.html, model: back.model, input_tokens: 0, output_tokens: 0 }]);
-      const edits = [...(l.site?.edits || []), { text: '(undo)', at: new Date().toISOString(), version }].slice(-30);
-      const [u] = await d.update('leads', `id=eq.${id}`, { site: { ...(l.site || {}), status: 'ready', version, edits, editing: null, built_at: new Date().toISOString(), error: null } });
+      const edits = [...(cur.edits || []), { text: '(undo)', at: new Date().toISOString(), version }].slice(-30);
+      const [u] = await d.update('leads', `id=eq.${id}`, { site: withSlot(l, slot, { status: 'ready', version, edits, editing: null, built_at: new Date().toISOString(), error: null }) });
       return json(present(u));
     }
     let html, notes;
     if (edit) {
-      const cur = await d.select('sites', `lead_id=eq.${id}&select=html&order=version.desc&limit=1`);
+      const latest = cur.token ? await d.select('sites', `token=eq.${cur.token}&select=html&order=version.desc&limit=1`) : [];
       const full = extractHtml(text || '');
       if (/<html/i.test(full) && full.length > 500 && /<\/html>$/i.test(full)) html = full; // it rewrote the page anyway
       else {
-        const r = applyEdits(cur[0]?.html || '', text || '');
+        const r = applyEdits(latest[0]?.html || '', text || '');
         if (!r.applied) throw new Error(`could not apply that edit${r.failed.length ? ` (no match for "${r.failed[0]}")` : ''}; try describing the change differently`);
         html = r.html;
         if (r.failed.length) notes = `Changed: partially applied, ${r.failed.length} patch(es) did not match`;
@@ -194,22 +200,39 @@ export async function onRequestPut({ request, env }) {
     notes = notes || (edit ? ((/^Changed:.*$/im.exec(text || '') || [''])[0]) : notesAround(text, html));
     const direction = (/[Dd]irection[^\n]{0,40}?\b([A-F])\b/.exec(notes) || [])[1] || null;
 
-    const prev = await d.select('sites', `lead_id=eq.${id}&select=version,token&order=version.desc&limit=1`);
+    const prev = cur.token ? await d.select('sites', `token=eq.${cur.token}&select=version,token&order=version.desc&limit=1`) : [];
     const version = prev.length ? (prev[0].version || 0) + 1 : 1;
-    const token = prev.length && prev[0].token ? prev[0].token : Math.random().toString(36).slice(2, 12);
+    const token = cur.token || Math.random().toString(36).slice(2, 12);
     await d.insert('sites', [{ lead_id: id, token, preset, version, html, model, input_tokens, output_tokens }]);
     await logCost(env, `claude ${edit ? 'edit' : 'build'} (${model})`, input_tokens + cache_read + cache_write + output_tokens, buildCost(model, input_tokens, output_tokens, cache_read, cache_write));
     const url = `${new URL(request.url).origin}/s/${token}`;
-    const edits = edit ? [...(l.site?.edits || []), { text: edit, at: new Date().toISOString(), version, summary: (/^Changed:\s*(.+)$/im.exec(notes) || [])[1] || '' }].slice(-30) : (l.site?.edits || []);
-    const [u] = await d.update('leads', `id=eq.${id}`, { site: { status: 'ready', preset: edit ? (l.site?.preset || preset) : preset, token, url, version, model, direction: edit ? (l.site?.direction || direction) : direction, inputs: l.site?.inputs || null, sent: l.site?.sent || [], form_token: l.site?.form_token || null, book_token: l.site?.book_token || null, submissions: l.site?.submissions || [], edits, editing: null, built_at: new Date().toISOString(), error: null } });
+    const edits = edit ? [...(cur.edits || []), { text: edit, at: new Date().toISOString(), version, summary: (/^Changed:\s*(.+)$/im.exec(notes) || [])[1] || '' }].slice(-30) : (cur.edits || []);
+    const [u] = await d.update('leads', `id=eq.${id}`, { site: withSlot(l, slot, { status: 'ready', preset: edit ? (cur.preset || preset) : preset, token, url, version, model, direction: edit ? (cur.direction || direction) : direction, inputs: cur.inputs || null, edits, editing: null, built_at: new Date().toISOString(), error: null }) });
     return json(present(u));
   } catch (e) {
-    await fail(d, leadId, e.message);
+    await fail(d, leadId, e.message, slot);
     return bad(e.message, 500);
   }
 }
 
-async function fail(d, id, message) {
+// A lead can hold several sites: slot 0 lives on lead.site itself, slot n in lead.site.extra[n-1].
+// Lead-level things (form_token, book_token, submissions, sent, extra) stay on lead.site.
+const LEAD_LEVEL = ['form_token', 'book_token', 'submissions', 'sent', 'extra'];
+export function slotOf(l, slot) {
+  const site = l.site || {};
+  if (!slot) { const o = { ...site }; for (const k of LEAD_LEVEL) delete o[k]; return o; }
+  return (site.extra || [])[slot - 1] || {};
+}
+export function withSlot(l, slot, patch) {
+  const site = { ...(l.site || {}) };
+  if (!slot) return { ...site, ...patch };
+  const extra = [...(site.extra || [])];
+  while (extra.length < slot) extra.push({});
+  extra[slot - 1] = { ...extra[slot - 1], ...patch };
+  return { ...site, extra };
+}
+
+async function fail(d, id, message, slot = 0) {
   if (!id) return;
-  try { const [l] = await d.select('leads', `id=eq.${id}`); await d.update('leads', `id=eq.${id}`, { site: { ...(l?.site || {}), status: l?.site?.token ? 'ready' : 'error', error: message } }); } catch { /* ignore */ }
+  try { const [l] = await d.select('leads', `id=eq.${id}`); const cur = slotOf(l || {}, slot); await d.update('leads', `id=eq.${id}`, { site: withSlot(l || {}, slot, { status: cur.token ? 'ready' : 'error', error: message }) }); } catch { /* ignore */ }
 }

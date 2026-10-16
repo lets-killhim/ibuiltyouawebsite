@@ -22,12 +22,16 @@ export async function onRequestPost({ request, env }) {
     const plan = (s.plans || []).find((p) => p.title === planTitle) || null;
     if (kind === 'invoice' && !plan) return bad('Pick a plan first; plans are made in settings');
     if (kind === 'invoice' && !s.agreement_file?.url) return bad('Upload the hosting agreement in settings first');
-    if (kind === 'site' && !l.site?.url) return bad('Build the site first');
+    // which of the lead's sites to send: slot 0 is lead.site, slot n is lead.site.extra[n-1]
+    const slot = Math.max(0, Math.min(9, Number(body.slot) || 0));
+    const chosen = slot ? (l.site?.extra || [])[slot - 1] : l.site;
+    const siteUrl = chosen?.url || '';
+    if (kind === 'site' && !siteUrl) return bad('Build the site first');
     // every lead gets a booking link the first time one is needed
     let site = l.site || {};
     if (!site.book_token) { site = { ...site, book_token: Math.random().toString(36).slice(2, 14) }; await d.update('leads', `id=eq.${id}`, { site }); l.site = site; }
     const book_link = `${new URL(request.url).origin}/book/${site.book_token}`;
-    const vars = { book_link, business: l.name, owner: l.owner || 'there', phone: l.phone || '', link: l.site?.url || '', me: s.me || '', my_phone: s.my_phone || '', my_email: s.my_email, plan: plan ? plan.title : planTitle, pay_link: plan ? plan.link : '', agreement_link: s.agreement_file?.url || s.agreement_link || '', date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) };
+    const vars = { book_link, business: l.name, owner: l.owner || 'there', phone: l.phone || '', link: siteUrl, me: s.me || '', my_phone: s.my_phone || '', my_email: s.my_email, plan: plan ? plan.title : planTitle, pay_link: plan ? plan.link : '', agreement_link: s.agreement_file?.url || s.agreement_link || '', date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) };
     let subject, text;
     if (kind === 'invoice') {
       subject = fill(s.tpl_pay_subject, vars).trim() || `${l.name}: website hosting agreement and payment`;
@@ -36,8 +40,8 @@ export async function onRequestPost({ request, env }) {
     } else {
       subject = fill(s.tpl_email_subject, vars).trim() || `Your new ${l.name} website`;
       text = fill(s.tpl_email, vars).trim();
-      if (!text) text = `Hi ${vars.owner},\n\nHere's the website I put together for ${l.name}: ${l.site.url}\n\nTell me what you'd like changed.\n\n${vars.me}\n${vars.my_phone}`.trim();
-      if (!text.includes(l.site.url)) text += `\n\n${l.site.url}`;
+      if (!text) text = `Hi ${vars.owner},\n\nHere's the website I put together for ${l.name}: ${siteUrl}\n\nTell me what you'd like changed.\n\n${vars.me}\n${vars.my_phone}`.trim();
+      if (!text.includes(siteUrl)) text += `\n\n${siteUrl}`;
     }
     const from = s.me ? `${s.me} <${s.my_email}>` : s.my_email;
     const attachments = [];
@@ -55,7 +59,7 @@ export async function onRequestPost({ request, env }) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return bad(`Resend ${res.status}: ${data.message || data.error?.message || 'could not send'}`, 502);
-    const sent = [...(l.site?.sent || []), { kind: kind === 'invoice' ? 'invoice' : 'email', to, at: new Date().toISOString(), id: data.id || null, plan: plan ? plan.title : undefined }].slice(-20);
+    const sent = [...(l.site?.sent || []), { kind: kind === 'invoice' ? 'invoice' : 'email', to, at: new Date().toISOString(), id: data.id || null, plan: plan ? plan.title : undefined, slot: slot || undefined }].slice(-20);
     const patch = { site: { ...(l.site || {}), sent } };
     if (kind === 'invoice') { patch.pay = 'sent'; patch.plan = plan.title; }
     if (override && override !== l.email) patch.email = to;

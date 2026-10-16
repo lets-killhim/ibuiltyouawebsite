@@ -185,8 +185,18 @@ select.input option { background: var(--cream); color: var(--green); font-weight
 @keyframes dropIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 @keyframes draw { 0% { stroke-dashoffset: 200; opacity: 1; } 45%, 75% { stroke-dashoffset: 0; opacity: 1; } 90%, 100% { stroke-dashoffset: 0; opacity: 0; } }
 @keyframes pulse { 0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }
+/* the leads tab's site column: the stack lives inside the column's height and only the arrows move it */
+.site-stack-wrap { position: relative; flex: 1 1 auto; min-height: 320px; }
+.site-stack { position: absolute; inset: 0; overflow: hidden; display: flex; flex-direction: column; gap: 14px; padding-bottom: 36px; }
+.stack-arrow { position: absolute; left: 50%; width: 30px; height: 30px; border-radius: 999px; border: 1px solid var(--line); background: var(--box); color: var(--bright); display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0.45; transition: opacity 0.15s; z-index: 2; }
+.stack-arrow:hover { opacity: 1; }
+.plus { width: 24px; height: 24px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+.plus:hover { color: var(--bright); border-color: var(--bright); }
 /* phones: stack the row and the dropdown vertically instead of shrinking the desktop layout */
 @media (max-width: 760px) {
+  .site-stack-wrap { min-height: 0; }
+  .site-stack { position: static; overflow: visible; padding-bottom: 0; }
+  .stack-arrow { display: none; }
   .row { flex-wrap: wrap; row-gap: 6px; column-gap: 12px; padding: 10px 0; }
   .row .name { flex: 1 1 100%; white-space: normal; font-size: 18px; }
   .row .cell { font-size: 13px; }

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api, WARM, fmtMeeting } from '../api.js';
-import { I, Socials, Lightbox, SitePanel } from '../components/ui.jsx';
+import { I, Socials, Lightbox, SitePanel, SendLinks, isBuilding } from '../components/ui.jsx';
 
 const STEPS = [
   ['Domain purchased', 'https://dash.cloudflare.com/?to=/:account/domains/register'],
@@ -35,6 +35,61 @@ export default function Leads({ settings, openId, toast, refreshCounts }) {
         {sorted.length > 0 ? <div className="end" /> : <span className="muted" style={{ padding: '24px 0' }}>Nothing confirmed yet. Hit the green check on a lead in the callcenter and it lands here.</span>}
       </div>
       {box && <Lightbox photos={box.photos} index={box.index} onClose={() => setBox(null)} onIndex={(i) => setBox({ ...box, index: i })} />}
+    </div>
+  );
+}
+
+// The middle column: one or more sites for the lead, stacked. The column takes its height from the
+// columns beside it and the stack moves inside it with the arrows (never the wheel), so the link and
+// send buttons stay pinned at the bottom, level with the notes box and the back button.
+function SiteColumn({ lead: l, settings, toast, patch, patchLocal }) {
+  const extra = (l.site || {}).extra || [];
+  const count = 1 + extra.length;
+  const [cur, setCur] = useState(0);
+  const scroller = useRef(null);
+  const goTo = (i) => {
+    const n = Math.max(0, Math.min(count - 1, i));
+    setCur(n);
+    const box = scroller.current, el = box && box.children[n];
+    if (el) box.scrollTo({ top: el.offsetTop, behavior: 'smooth' });
+  };
+  const add = async () => {
+    try { await patch(l.id, { site: { ...(l.site || {}), extra: [...extra, {}] } }); setTimeout(() => goTo(count), 50); } catch (e) { toast('Could not add: ' + e.message); }
+  };
+  const drop = async (i) => {
+    if (!i || extra[i - 1]?.status === 'building' || isBuilding(l.id, i)) return;
+    try { await patch(l.id, { site: { ...(l.site || {}), extra: extra.filter((_, j) => j !== i - 1) } }); setTimeout(() => goTo(Math.min(i, count - 2)), 50); } catch (e) { toast('Could not remove: ' + e.message); }
+  };
+  useEffect(() => { if (cur > count - 1) setCur(count - 1); }, [count]); // eslint-disable-line react-hooks/exhaustive-deps
+  const arrow = (dir) => (
+    <button className="stack-arrow" onClick={() => goTo(cur + dir)} aria-label={dir > 0 ? 'Next site' : 'Previous site'} style={{ [dir > 0 ? 'bottom' : 'top']: 6, transform: `translateX(-50%) rotate(${dir > 0 ? 0 : 180}deg)` }}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+    </button>
+  );
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span className="sect">their site{count > 1 ? ` · ${cur + 1} of ${count}` : ''}</span>
+        <button className="plus" onClick={add} aria-label="Add another site" title="build another version below">+</button>
+      </div>
+      <div className="site-stack-wrap">
+        <div ref={scroller} className="site-stack">
+          {Array.from({ length: count }, (_, i) => (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {i > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+                  <span className="small muted">site {i + 1}</span>
+                  {extra[i - 1]?.status !== 'building' && !isBuilding(l.id, i) && <button className="linkish small" onClick={() => drop(i)} style={{ marginLeft: 'auto' }}>remove</button>}
+                </div>
+              )}
+              <SitePanel lead={l} settings={settings} onLead={(u) => patchLocal(u)} toast={toast} slot={i} compact />
+            </div>
+          ))}
+        </div>
+        {cur > 0 && arrow(-1)}
+        {cur < count - 1 && arrow(1)}
+      </div>
+      <SendLinks lead={l} settings={settings} onLead={(u) => patchLocal(u)} toast={toast} slot={cur} />
     </div>
   );
 }
@@ -102,10 +157,7 @@ function ClientRow({ lead: l, open, toggle, patch, settings, toast, refreshCount
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <span className="sect">their site</span>
-            <SitePanel lead={l} settings={settings} onLead={(u) => patchLocal(u)} toast={toast} />
-          </div>
+          <SiteColumn lead={l} settings={settings} toast={toast} patch={patch} patchLocal={patchLocal} />
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 22, fontSize: 14 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -127,7 +179,7 @@ function ClientRow({ lead: l, open, toggle, patch, settings, toast, refreshCount
               )}
               <span className="small muted">emails the {plan ? plan : 'selected'} Stripe link and the hosting agreement; they accept by replying "I agree" or by paying</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid var(--line)', paddingTop: 14, flex: '1 1 auto' }}>
               <span className="sect">going live</span>
               {STEPS.map(([label, href], i) => (
                 <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -158,7 +210,7 @@ function ClientRow({ lead: l, open, toggle, patch, settings, toast, refreshCount
                   <span>this site was built before forms were wired up · <button className="linkish" onClick={async () => { try { patchLocal(await api.activateForm(l.id)); toast('form activated'); } catch (e) { toast('Could not activate: ' + e.message); } }}>activate the form</button></span>
                 ) : <span>build the site and its form is live automatically</span>}
               </div>
-              <button className="btn-ghost" onClick={remove} style={{ alignSelf: 'flex-start' }}>back to callcenter</button>
+              <button className="btn-ghost" onClick={remove} style={{ alignSelf: 'flex-start', marginTop: 'auto' }}>back to callcenter</button>
             </div>
           </div>
 

@@ -59,15 +59,15 @@ export const api = {
       }
       if (!stop_reason) throw new Error('the connection dropped before the page was finished; build again');
     } catch (e) {
-      await call('PUT', '/api/build', { id, error: e.message }).catch(() => {});
+      await call('PUT', '/api/build', { id, error: e.message, slot: inputs.slot || undefined }).catch(() => {});
       throw e;
     }
-    return call('PUT', '/api/build', { id, preset, text, model, input_tokens, output_tokens, cache_read, cache_write, stop_reason, edit: inputs.edit || undefined });
+    return call('PUT', '/api/build', { id, preset, text, model, input_tokens, output_tokens, cache_read, cache_write, stop_reason, edit: inputs.edit || undefined, slot: inputs.slot || undefined });
   },
   addLead: (name, email, phone) => call('POST', '/api/leads', { name, email, phone }),
-  activateForm: (id) => call('PUT', '/api/build', { id, activate_form: true }),
-  undoEdit: (id) => call('PUT', '/api/build', { id, revert: true }),
-  sendEmail: (id, to) => call('POST', '/api/send', { id, to }),
+  activateForm: (id, slot = 0) => call('PUT', '/api/build', { id, activate_form: true, slot: slot || undefined }),
+  undoEdit: (id, slot = 0) => call('PUT', '/api/build', { id, revert: true, slot: slot || undefined }),
+  sendEmail: (id, to, slot = 0) => call('POST', '/api/send', { id, to, slot: slot || undefined }),
   sendInvoice: (id, to, plan) => call('POST', '/api/send', { id, to, plan, kind: 'invoice' }),
   diag: (niche, town, check) => call('POST', '/api/diag', { niche, town, check }),
   clear: (status) => call('POST', '/api/clear', { status }),

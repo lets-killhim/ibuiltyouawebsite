@@ -106,6 +106,7 @@ function House() {
   );
 }
 const notify = () => QUEUE.listeners.forEach((f) => f());
+export const isBuilding = (leadId, slot = 0) => QUEUE.inflight.has(`${leadId}:${slot}`);
 function enqueue(job) {
   return new Promise((resolve, reject) => {
     const run = async () => { QUEUE.running++; notify(); try { resolve(await job()); } catch (e) { reject(e); } finally { QUEUE.running--; const n = QUEUE.waiting.shift(); notify(); if (n) n(); } };
@@ -129,15 +130,18 @@ export const PALETTES = [
 // 'claude-fable-5-1' -> 'Fable 5.1'
 const modelName = (id) => { const m = /claude-([a-z]+)-(\d+)(?:-(\d+))?/.exec(id || ''); return m ? `${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}${m[3] ? '.' + m[3] : ''}` : id; };
 
-export function SitePanel({ lead, settings, onLead, toast }) {
+// Which of a lead's sites a slot points at: 0 is lead.site itself, n is lead.site.extra[n-1].
+export const siteAt = (lead, slot = 0) => (slot ? ((lead.site || {}).extra || [])[slot - 1] || {} : lead.site || {});
+
+export function SitePanel({ lead, settings, onLead, toast, slot = 0, compact = false }) {
   const presets = settings?.presets || [];
-  const site = lead.site || {};
+  const site = siteAt(lead, slot);
+  const key = `${lead.id}:${slot}`;
   const [preset, setPreset] = useState(site.preset || (presets[0] && presets[0].name) || '');
   const [busy, setBusy] = useState(false);
   const [queued, setQueued] = useState(false);
   const [chars, setChars] = useState(0);
   const [ask, setAsk] = useState(null); // {notes, palette, color} while the build popup is open
-  const [mailTo, setMailTo] = useState(null); // the address being confirmed while the email popup is open
   const [editText, setEditText] = useState('');
   const sendEdit = async () => {
     const edit = editText.trim();
@@ -145,23 +149,7 @@ export function SitePanel({ lead, settings, onLead, toast }) {
     setEditText('');
     await build({ edit });
   };
-  const undo = async () => { try { onLead(await api.undoEdit(lead.id)); } catch (e) { toast('Could not undo: ' + e.message); } };
-  const [sending, setSending] = useState(false);
-  const mailRef = useRef(null);
-  useEffect(() => {
-    if (mailTo === null) return;
-    const down = (e) => { if (mailRef.current && !mailRef.current.contains(e.target)) setMailTo(null); };
-    const key = (e) => { if (e.key === 'Escape') setMailTo(null); };
-    document.addEventListener('mousedown', down); document.addEventListener('keydown', key);
-    return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key); };
-  }, [mailTo]);
-  const sendEmail = async () => {
-    const to = (mailTo || '').trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) { toast('that is not an email address'); return; }
-    setSending(true);
-    try { onLead(await api.sendEmail(lead.id, to)); setMailTo(null); toast('sent to ' + to); } catch (e) { toast('Could not send: ' + e.message); }
-    setSending(false);
-  };
+  const undo = async () => { try { onLead(await api.undoEdit(lead.id, slot)); } catch (e) { toast('Could not undo: ' + e.message); } };
   const askRef = useRef(null);
   // click anywhere outside the popup, or Escape, closes it
   useEffect(() => {
@@ -179,7 +167,7 @@ export function SitePanel({ lead, settings, onLead, toast }) {
   // and after twenty-five give the button back outright.
   const age = Date.now() - new Date(site.started_at || 0).getTime();
   const stale = site.status === 'building' && age > 25 * 60 * 1000;
-  const orphan = site.status === 'building' && !busy && !QUEUE.inflight.has(lead.id) && age > 3 * 60 * 1000;
+  const orphan = site.status === 'building' && !busy && !QUEUE.inflight.has(key) && age > 3 * 60 * 1000;
   const building = busy || (site.status === 'building' && !stale);
   const elapsed = useElapsed(busy ? startedRef.current : site.started_at, building);
   const open = () => {
@@ -190,28 +178,12 @@ export function SitePanel({ lead, settings, onLead, toast }) {
   const build = async (inputs) => {
     setAsk(null);
     startedRef.current = new Date().toISOString();
-    QUEUE.inflight.add(lead.id);
+    QUEUE.inflight.add(key);
     setBusy(true); setErr(null); setChars(0); setQueued(QUEUE.running >= QUEUE.limit);
-    try { onLead(await enqueue(() => { setQueued(false); return api.build(lead.id, preset, setChars, inputs); })); } catch (e) { setErr(e.message); toast('Build failed, see the note under the button'); }
-    QUEUE.inflight.delete(lead.id);
+    try { onLead(await enqueue(() => { setQueued(false); return api.build(lead.id, preset, setChars, { ...inputs, slot }); })); } catch (e) { setErr(e.message); toast('Build failed, see the note under the button'); }
+    QUEUE.inflight.delete(key);
     setBusy(false); setQueued(false);
   };
-  const bookLink = site.book_token ? `${window.location.origin}/book/${site.book_token}` : '';
-  const vars = { business: lead.name, owner: lead.owner || 'there', phone: lead.phone || '', link: site.url || '', book_link: bookLink, me: settings?.me || '', my_phone: settings?.my_phone || '', plan: lead.plan || '' };
-  // a text that uses {book_link} needs the lead to have a booking token first; make one on the way out
-  const ensureBook = async (e) => {
-    if (site.book_token || !/\{book_link\}/.test(settings?.tpl_text || '')) return;
-    e.preventDefault();
-    const token = Math.random().toString(36).slice(2, 14);
-    try { const u = await api.patchLead(lead.id, { site: { ...site, book_token: token } }); onLead(u); } catch { /* fall through */ }
-    const href = `sms:${lead.phone.replace(/[^+\d]/g, '')}?&body=${encodeURIComponent(fill(settings?.tpl_text).replace('{book_link}', `${window.location.origin}/book/${token}`))}`;
-    window.location.href = href;
-  };
-  const fill = (tpl) => (tpl || '').replace(/\{(\w+)\}/g, (_, k) => (k in vars ? vars[k] : ''));
-  const smsHref = lead.phone ? `sms:${lead.phone.replace(/[^+\d]/g, '')}?&body=${encodeURIComponent(fill(settings?.tpl_text))}` : null;
-  const mailHref = lead.email ? `mailto:${lead.email}?subject=${encodeURIComponent(fill(settings?.tpl_email_subject))}&body=${encodeURIComponent(fill(settings?.tpl_email))}` : null;
-  const copy = () => { navigator.clipboard.writeText(site.url); toast('link copied'); };
-  const lastSent = (site.sent || []).filter((x) => x.kind === 'email').slice(-1)[0];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -268,27 +240,7 @@ export function SitePanel({ lead, settings, onLead, toast }) {
           <iframe key={site.version} title="site preview" src={`${site.url}?v=${site.version}`} style={{ width: 1280, height: 800, border: 0, transform: 'scale(0.265)', transformOrigin: 'top left', pointerEvents: 'none' }} />
           <button onClick={() => setFull(true)} aria-label="Open fullscreen" style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: 999, border: 0, background: 'rgba(15,59,46,0.85)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{I.expand}</button>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: 13 }}>
-          <a href={site.url} target="_blank" rel="noreferrer" style={{ color: 'var(--bright)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{site.url.replace(/^https?:\/\//, '')}</a>
-          <button className="btn-ghost" onClick={copy} style={{ height: 32, padding: '0 12px', flexShrink: 0 }}>copy</button>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>
-          <span>send the link:</span>
-          {smsHref ? <a className="ring lg" href={smsHref} onClick={ensureBook} aria-label="Text the link">{I.msg}</a> : <span className="ring lg off" aria-label="No phone">{I.msg}</span>}
-          {settings?.resend_key_last4 ? (
-            <span ref={mailRef} style={{ position: 'relative', display: 'inline-flex' }}>
-              <button className="ring lg" onClick={() => setMailTo(lead.email || '')} aria-label="Email the link" style={{ cursor: 'pointer' }}>{I.mail}</button>
-              {mailTo !== null && (
-                <div className="pop" style={{ width: 300, top: 52 }}>
-                  <span className="label">email the link to</span>
-                  <input className="input" autoFocus value={mailTo} onChange={(e) => setMailTo(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendEmail(); }} placeholder="their email address" style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none' }} />
-                  <button className="btn" onClick={sendEmail} disabled={sending}>{sending ? 'sending' : 'Send'}</button>
-                </div>
-              )}
-            </span>
-          ) : mailHref ? <a className="ring lg" href={mailHref} aria-label="Email the link">{I.mail}</a> : <span className="ring lg off" title="no email found for this business">{I.mail}</span>}
-          {lastSent && <span style={{ letterSpacing: 0, textTransform: 'none', fontWeight: 400, color: 'var(--ok)' }}>✓ emailed {new Date(lastSent.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>}
-        </div>
+        {!compact && <SendLinks lead={lead} settings={settings} onLead={onLead} toast={toast} slot={slot} />}
       </>)}
       {!building && !err && site.status === 'error' && <span className="small" style={{ color: 'var(--red)' }}>{site.error}</span>}
       {!building && !site.status && <span className="small muted">builds a one-page site from the photos and details above</span>}
@@ -319,6 +271,70 @@ export function SitePanel({ lead, settings, onLead, toast }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// The link to a built site plus the text / email buttons. Lives inside SitePanel, or pinned on its own in the leads tab.
+export function SendLinks({ lead, settings, onLead, toast, slot = 0 }) {
+  const site = siteAt(lead, slot);
+  const shared = lead.site || {}; // booking token and the sent log are per lead, not per site
+  const [mailTo, setMailTo] = useState(null); // the address being confirmed while the email popup is open
+  const [sending, setSending] = useState(false);
+  const mailRef = useRef(null);
+  useEffect(() => {
+    if (mailTo === null) return;
+    const down = (e) => { if (mailRef.current && !mailRef.current.contains(e.target)) setMailTo(null); };
+    const key = (e) => { if (e.key === 'Escape') setMailTo(null); };
+    document.addEventListener('mousedown', down); document.addEventListener('keydown', key);
+    return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key); };
+  }, [mailTo]);
+  const sendEmail = async () => {
+    const to = (mailTo || '').trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) { toast('that is not an email address'); return; }
+    setSending(true);
+    try { onLead(await api.sendEmail(lead.id, to, slot)); setMailTo(null); toast('sent to ' + to); } catch (e) { toast('Could not send: ' + e.message); }
+    setSending(false);
+  };
+  const bookLink = shared.book_token ? `${window.location.origin}/book/${shared.book_token}` : '';
+  const vars = { business: lead.name, owner: lead.owner || 'there', phone: lead.phone || '', link: site.url || '', book_link: bookLink, me: settings?.me || '', my_phone: settings?.my_phone || '', plan: lead.plan || '' };
+  const fill = (tpl) => (tpl || '').replace(/\{(\w+)\}/g, (_, k) => (k in vars ? vars[k] : ''));
+  // a text that uses {book_link} needs the lead to have a booking token first; make one on the way out
+  const ensureBook = async (e) => {
+    if (shared.book_token || !/\{book_link\}/.test(settings?.tpl_text || '')) return;
+    e.preventDefault();
+    const token = Math.random().toString(36).slice(2, 14);
+    try { const u = await api.patchLead(lead.id, { site: { ...shared, book_token: token } }); onLead(u); } catch { /* fall through */ }
+    window.location.href = `sms:${lead.phone.replace(/[^+\d]/g, '')}?&body=${encodeURIComponent(fill(settings?.tpl_text).replace('{book_link}', `${window.location.origin}/book/${token}`))}`;
+  };
+  const smsHref = lead.phone ? `sms:${lead.phone.replace(/[^+\d]/g, '')}?&body=${encodeURIComponent(fill(settings?.tpl_text))}` : null;
+  const mailHref = lead.email ? `mailto:${lead.email}?subject=${encodeURIComponent(fill(settings?.tpl_email_subject))}&body=${encodeURIComponent(fill(settings?.tpl_email))}` : null;
+  const copy = () => { navigator.clipboard.writeText(site.url); toast('link copied'); };
+  const lastSent = (shared.sent || []).filter((x) => x.kind === 'email' && (x.slot || 0) === slot).slice(-1)[0];
+  if (!site.url) return null;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: 13 }}>
+        <a href={site.url} target="_blank" rel="noreferrer" style={{ color: 'var(--bright)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{site.url.replace(/^https?:\/\//, '')}</a>
+        <button className="btn-ghost" onClick={copy} style={{ height: 32, padding: '0 12px', flexShrink: 0 }}>copy</button>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+        <span>send the link:</span>
+        {smsHref ? <a className="ring lg" href={smsHref} onClick={ensureBook} aria-label="Text the link">{I.msg}</a> : <span className="ring lg off" aria-label="No phone">{I.msg}</span>}
+        {settings?.resend_key_last4 ? (
+          <span ref={mailRef} style={{ position: 'relative', display: 'inline-flex' }}>
+            <button className="ring lg" onClick={() => setMailTo(lead.email || '')} aria-label="Email the link" style={{ cursor: 'pointer' }}>{I.mail}</button>
+            {mailTo !== null && (
+              <div className="pop" style={{ width: 300, top: 52 }}>
+                <span className="label">email the link to</span>
+                <input className="input" autoFocus value={mailTo} onChange={(e) => setMailTo(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendEmail(); }} placeholder="their email address" style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none' }} />
+                <button className="btn" onClick={sendEmail} disabled={sending}>{sending ? 'sending' : 'Send'}</button>
+              </div>
+            )}
+          </span>
+        ) : mailHref ? <a className="ring lg" href={mailHref} aria-label="Email the link">{I.mail}</a> : <span className="ring lg off" title="no email found for this business">{I.mail}</span>}
+        {lastSent && <span style={{ letterSpacing: 0, textTransform: 'none', fontWeight: 400, color: 'var(--ok)' }}>✓ emailed {new Date(lastSent.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>}
+      </div>
     </div>
   );
 }
