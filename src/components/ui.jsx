@@ -170,9 +170,12 @@ export function SitePanel({ lead, settings, onLead, toast, slot = 0, compact = f
   const orphan = site.status === 'building' && !busy && !QUEUE.inflight.has(key) && age > 3 * 60 * 1000;
   const building = busy || (site.status === 'building' && !stale);
   const elapsed = useElapsed(busy ? startedRef.current : site.started_at, building);
-  const open = () => {
+  const [popAt, setPopAt] = useState(null); // where the build popup sits on screen (fixed, so a clipped column can't cut it off)
+  const open = (e) => {
     if (!settings?.anthropic_key_last4) { toast('Add your Claude API key in settings first'); return; }
     const prev = site.inputs || {};
+    const r = e?.currentTarget?.getBoundingClientRect?.();
+    if (r) { const w = 320, h = 420; setPopAt({ left: Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)), top: r.bottom + 8 + h > window.innerHeight ? Math.max(8, r.top - 8 - h) : r.bottom + 8 }); } else setPopAt(null);
     setAsk({ notes: prev.notes || '', palette: prev.palette || '', color: prev.color || '', components: prev.components || [] });
   };
   const build = async (inputs) => {
@@ -193,7 +196,7 @@ export function SitePanel({ lead, settings, onLead, toast, slot = 0, compact = f
         <span ref={askRef} style={{ position: 'relative' }}>
           <Pill small onClick={open} disabled={building}>{site.token ? 'Rebuild' : 'Build site'}</Pill>
           {ask && (
-            <div className="pop" style={{ width: 320 }}>
+            <div className="pop" style={popAt ? { width: 320, position: 'fixed', left: popAt.left, top: popAt.top, right: 'auto', maxHeight: 'calc(100vh - 16px)', overflowY: 'auto', zIndex: 60 } : { width: 320 }}>
               <span className="label">anything the designer should know?</span>
               <textarea className="input" rows={3} autoFocus value={ask.notes} onChange={(e) => setAsk({ ...ask, notes: e.target.value })} placeholder="owner's name, what they're known for, a vibe, things to avoid" style={{ fontWeight: 400, letterSpacing: 0, textTransform: 'none', resize: 'none' }} />
               <span className="label">colors</span>
